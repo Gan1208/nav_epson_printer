@@ -76,6 +76,7 @@ fun LandingScreen(
     onDeliveryDateChosen: (LocalDate) -> Unit,
     onCategoryChosen: (Category?) -> Unit,
     onDeliveryNoteChosen: (DeliveryNote) -> Unit,
+    onRetry: () -> Unit,
     onPrint: () -> Unit,
     onPreview: () -> Unit,
 ) {
@@ -122,7 +123,13 @@ fun LandingScreen(
             Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 DeliveryDateField(state.today, state.deliveryDate, onDeliveryDateChosen)
                 CategoryField(state.category, onCategoryChosen)
-                DeliveryNoteField(state.selectedDeliveryNote, state.deliveryNoteOptions, onDeliveryNoteChosen)
+                DeliveryNoteField(
+                    selected = state.selectedDeliveryNote,
+                    options = state.deliveryNoteOptions,
+                    loadStatus = state.loadStatus,
+                    onChosen = onDeliveryNoteChosen,
+                    onRetry = onRetry,
+                )
             }
             Spacer(Modifier.weight(3f))
         }
@@ -220,39 +227,57 @@ private fun CategoryField(category: Category?, onChosen: (Category?) -> Unit) {
 private fun DeliveryNoteField(
     selected: DeliveryNote?,
     options: List<DeliveryNote>,
+    loadStatus: LoadStatus,
     onChosen: (DeliveryNote) -> Unit,
+    onRetry: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val hasOptions = options.isNotEmpty()
 
-    ExposedDropdownMenuBox(
-        expanded = expanded && hasOptions,
-        onExpandedChange = { expanded = it && hasOptions },
-    ) {
-        OutlinedTextField(
-            // The placeholder only shows when focused, so say "none" in the value itself.
-            value = selected?.number ?: if (hasOptions) "" else "冇送貨單",
-            onValueChange = {},
-            readOnly = true,
-            enabled = hasOptions,
-            label = { Text("送貨單") },
-            placeholder = { Text("請選擇") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            shape = fieldShape,
-            modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = hasOptions)
-                .fillMaxWidth(),
-        )
-        ExposedDropdownMenu(expanded = expanded && hasOptions, onDismissRequest = { expanded = false }) {
-            options.forEach { note ->
-                DropdownMenuItem(
-                    text = { Text("${note.number}（${note.category.label}）") },
-                    onClick = {
-                        onChosen(note)
-                        expanded = false
-                    },
-                )
+    // The placeholder only shows when focused, so say why it is empty in the value itself.
+    val emptyText = when (loadStatus) {
+        LoadStatus.LOADING -> "載入中…"
+        LoadStatus.FAILED -> "連線失敗"
+        LoadStatus.LOADED -> "冇送貨單"
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ExposedDropdownMenuBox(
+            expanded = expanded && hasOptions,
+            onExpandedChange = { expanded = it && hasOptions },
+        ) {
+            OutlinedTextField(
+                value = selected?.displayNumber ?: if (hasOptions) "" else emptyText,
+                onValueChange = {},
+                readOnly = true,
+                enabled = hasOptions,
+                label = { Text("送貨單") },
+                isError = loadStatus == LoadStatus.FAILED,
+                placeholder = { Text("請選擇") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                shape = fieldShape,
+                modifier = Modifier
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = hasOptions)
+                    .fillMaxWidth(),
+            )
+            ExposedDropdownMenu(expanded = expanded && hasOptions, onDismissRequest = { expanded = false }) {
+                options.forEach { note ->
+                    DropdownMenuItem(
+                        text = { Text("${note.displayNumber}（${note.category.label}）") },
+                        onClick = {
+                            onChosen(note)
+                            expanded = false
+                        },
+                    )
+                }
             }
+        }
+        if (loadStatus == LoadStatus.FAILED) {
+            OutlinedButton(
+                onClick = onRetry,
+                shape = fieldShape,
+                modifier = Modifier.fillMaxWidth().height(fieldHeight),
+            ) { Text("重試") }
         }
     }
 }
