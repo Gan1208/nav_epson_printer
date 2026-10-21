@@ -18,6 +18,7 @@ import com.kowloondairy.navprint.landing.LandingScreen
 import com.kowloondairy.navprint.landing.LandingViewModel
 import com.kowloondairy.navprint.landing.SqlConnectionSettings
 import com.kowloondairy.navprint.landing.SqlDeliveryNoteSource
+import com.kowloondairy.navprint.print.EpsonPrinterFinder
 import com.kowloondairy.navprint.print.EpsonReceiptPrinter
 import com.kowloondairy.navprint.print.SharedPrefsPrinterAddressStore
 import com.kowloondairy.navprint.receipt.ReceiptPreviewScreen
@@ -93,7 +94,7 @@ class MainActivity : ComponentActivity() {
     private fun PrinterSettings(onBack: () -> Unit) {
         val viewModel: PrinterSettingsViewModel = viewModel(
             factory = viewModelFactory {
-                initializer { PrinterSettingsViewModel(printerAddresses, printer) }
+                initializer { PrinterSettingsViewModel(printerAddresses, printer, printerFinder) }
             },
         )
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -103,11 +104,14 @@ class MainActivity : ComponentActivity() {
             onAddressChanged = viewModel::editAddress,
             onSave = viewModel::save,
             onTestPrint = viewModel::testPrint,
+            onConfirmTestPrint = viewModel::confirmTestPrint,
+            onCancelTestPrint = viewModel::cancelTestPrint,
         )
     }
 
     private val printerAddresses by lazy { SharedPrefsPrinterAddressStore(applicationContext) }
     private val printer by lazy { EpsonReceiptPrinter(applicationContext, printerAddresses) }
+    private val printerFinder by lazy { EpsonPrinterFinder(applicationContext) }
 
     private val navSqlSettings = SqlConnectionSettings(
         host = BuildConfig.NAV_SQL_HOST,

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -18,6 +19,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -33,6 +35,8 @@ fun PrinterSettingsScreen(
     onAddressChanged: (String) -> Unit,
     onSave: () -> Unit,
     onTestPrint: () -> Unit,
+    onConfirmTestPrint: () -> Unit,
+    onCancelTestPrint: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -58,8 +62,10 @@ fun PrinterSettingsScreen(
                 .padding(16.dp)
                 .fillMaxSize(),
         ) {
+            val busy = state.test == TestPrintStatus.Searching || state.test == TestPrintStatus.Printing
             OutlinedTextField(
                 value = state.address,
+                enabled = !busy,
                 onValueChange = onAddressChanged,
                 label = { Text("打印機 IP") },
                 placeholder = { Text("例如 192.168.1.50") },
@@ -67,17 +73,28 @@ fun PrinterSettingsScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth(),
             )
-            val testing = state.test == TestPrintStatus.Printing
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onSave, enabled = !testing, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = onSave, enabled = !busy, modifier = Modifier.weight(1f)) {
                     Text("儲存")
                 }
-                Button(onClick = onTestPrint, enabled = !testing, modifier = Modifier.weight(1f)) {
-                    Text(if (testing) "打印中…" else "測試打印")
+                Button(onClick = onTestPrint, enabled = !busy, modifier = Modifier.weight(1f)) {
+                    Text(
+                        when (state.test) {
+                            TestPrintStatus.Searching -> "搜尋打印機中…"
+                            TestPrintStatus.Printing -> "打印中…"
+                            else -> "測試打印"
+                        },
+                    )
                 }
             }
             when (val test = state.test) {
-                TestPrintStatus.Idle, TestPrintStatus.Printing -> Unit
+                TestPrintStatus.Idle, TestPrintStatus.Searching, TestPrintStatus.Printing -> Unit
+                is TestPrintStatus.Asking -> AlertDialog(
+                    onDismissRequest = onCancelTestPrint,
+                    text = { Text(test.question) },
+                    confirmButton = { TextButton(onClick = onConfirmTestPrint) { Text("打印") } },
+                    dismissButton = { TextButton(onClick = onCancelTestPrint) { Text("取消") } },
+                )
                 TestPrintStatus.Passed -> Text("已送出測試打印。如打印機出紙，即表示連接成功。")
                 is TestPrintStatus.Failed -> Text(test.problem.message, color = MaterialTheme.colorScheme.error)
             }
