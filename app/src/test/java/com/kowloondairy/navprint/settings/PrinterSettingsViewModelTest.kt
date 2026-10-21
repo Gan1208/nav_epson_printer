@@ -211,6 +211,17 @@ class PrinterSettingsViewModelTest {
     }
 
     @Test
+    fun `with no IP typed, a test print says so without searching`() {
+        val viewModel = viewModel()
+
+        viewModel.editAddress("  ")
+        viewModel.testPrint()
+
+        assertEquals(emptyList<String>(), finder.searched)
+        assertEquals(TestPrintStatus.Failed(PrintProblem.NO_ADDRESS), viewModel.state.value.test)
+    }
+
+    @Test
     fun `pressing cancel prints nothing`() {
         val viewModel = viewModel()
 

@@ -60,6 +60,10 @@ class PrinterSettingsViewModel(
         if (_state.value.test == TestPrintStatus.Printing) return
         save()
         val address = _state.value.address
+        if (address.isEmpty()) {
+            _state.update { it.copy(test = TestPrintStatus.Failed(PrintProblem.NO_ADDRESS)) }
+            return
+        }
         _state.update { it.copy(test = TestPrintStatus.Searching) }
         viewModelScope.launch {
             val model = try {
