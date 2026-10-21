@@ -1,6 +1,6 @@
 # 02 — 測試打印前偵測打印機型號
 
-Status: open
+Status: resolved
 Type: task
 Blocked by: 01
 
