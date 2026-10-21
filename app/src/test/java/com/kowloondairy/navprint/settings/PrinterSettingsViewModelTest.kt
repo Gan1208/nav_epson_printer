@@ -41,9 +41,13 @@ class PrinterSettingsViewModelTest {
         /** When set, the search stays open until this completes. */
         var searchHeld: CompletableDeferred<Unit>? = null
 
+        /** When set, the search throws this instead of answering. */
+        var failWith: Throwable? = null
+
         override suspend fun findModel(address: String): String? {
             searched += address
             searchHeld?.await()
+            failWith?.let { throw it }
             return model
         }
     }
@@ -191,6 +195,19 @@ class PrinterSettingsViewModelTest {
         viewModel.confirmTestPrint()
 
         assertEquals(listOf("192.168.1.50"), printer.testedAt)
+    }
+
+    @Test
+    fun `a search that breaks counts as no printer found`() {
+        val viewModel = viewModel()
+        finder.failWith = IllegalStateException("wifi off")
+
+        viewModel.testPrint()
+
+        assertEquals(
+            TestPrintStatus.Asking("找不到此 IP 的打印機型號。仍要打印測試頁？"),
+            viewModel.state.value.test,
+        )
     }
 
     @Test

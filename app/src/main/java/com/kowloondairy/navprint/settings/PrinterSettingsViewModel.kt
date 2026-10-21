@@ -62,7 +62,14 @@ class PrinterSettingsViewModel(
         val address = _state.value.address
         _state.update { it.copy(test = TestPrintStatus.Searching) }
         viewModelScope.launch {
-            val model = finder.findModel(address)
+            val model = try {
+                finder.findModel(address)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A broken search is no worse than a silent one: still offer to print.
+                null
+            }
             val question = when {
                 model == null -> "找不到此 IP 的打印機型號。仍要打印測試頁？"
                 isExpectedModel(model) -> "找到打印機 $model（$address）。確定打印測試頁？"
