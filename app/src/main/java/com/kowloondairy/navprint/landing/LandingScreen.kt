@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -23,6 +24,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -77,39 +79,37 @@ fun LandingScreen(
     onCategoryChosen: (Category?) -> Unit,
     onDeliveryNoteChosen: (DeliveryNote) -> Unit,
     onRetry: () -> Unit,
-    onPrint: () -> Unit,
     onPreview: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("送貨單打印") },
+                actions = {
+                    IconButton(onClick = onSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "設定")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             )
         },
         bottomBar = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            // Printing happens from the preview, so every 收據 is seen before it is printed.
+            Button(
+                onClick = onPreview,
+                enabled = state.canPrint,
+                shape = fieldShape,
                 modifier = Modifier
                     .navigationBarsPadding()
-                    .padding(16.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onPreview,
-                    enabled = state.canPrint,
-                    shape = fieldShape,
-                    modifier = Modifier.weight(1f).height(fieldHeight),
-                ) { Text("預覽") }
-                Button(
-                    onClick = onPrint,
-                    enabled = state.canPrint,
-                    shape = fieldShape,
-                    modifier = Modifier.weight(1f).height(fieldHeight),
-                ) { Text("列印") }
-            }
+                    .padding(16.dp)
+                    .fillMaxWidth()
+                    .height(fieldHeight),
+            ) { Text("預覽") }
         },
     ) { padding ->
         Column(

@@ -59,6 +59,9 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
 
     implementation(libs.jtds)
+    implementation(libs.zxing.core)
+    // Epson ePOS SDK for Android 2.37.1, from download-center.epson.com (not on Maven).
+    implementation(files("libs/ePOS2.jar"))
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

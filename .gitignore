@@ -4,3 +4,6 @@ build/
 .idea/
 *.iml
 .kotlin/
+
+# Epson ePOS SDK download (only ePOS2.jar and libepos2.so are used)
+ePOS_SDK_Android_*.zip

@@ -3,6 +3,7 @@ package com.kowloondairy.navprint.landing
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.Timestamp
 import java.time.LocalDate
@@ -28,6 +29,15 @@ data class SqlConnectionSettings(
         const val TIMEOUT_SECONDS = 10
     }
 }
+
+fun SqlConnectionSettings.openReadOnly(): Connection {
+    Class.forName("net.sourceforge.jtds.jdbc.Driver")
+    return DriverManager.getConnection(jdbcUrl, user, password).apply { isReadOnly = true }
+}
+
+/** Android's Timestamp has no valueOf(LocalDateTime); midnight in the phone's zone is the same thing. */
+fun LocalDate.startTimestamp() =
+    Timestamp(atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
 
 /** Reads 送貨單 straight from the NAV database. Read-only. */
 class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : DeliveryNoteSource {
@@ -59,9 +69,7 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
             ORDER BY l.[Delivery ID]
         """.trimIndent()
 
-        Class.forName("net.sourceforge.jtds.jdbc.Driver")
-        DriverManager.getConnection(settings.jdbcUrl, settings.user, settings.password).use { connection ->
-            connection.isReadOnly = true
+        settings.openReadOnly().use { connection ->
             connection.prepareStatement(sql).use { statement ->
                 statement.setTimestamp(1, deliveryDate.startTimestamp())
                 statement.setTimestamp(2, deliveryDate.plusDays(1).startTimestamp())
@@ -80,10 +88,6 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
             }
         }
     }
-
-    /** Android's Timestamp has no valueOf(LocalDateTime); midnight in the phone's zone is the same thing. */
-    private fun LocalDate.startTimestamp() =
-        Timestamp(atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
 
     companion object {
         private const val TAG = "SqlDeliveryNoteSource"
