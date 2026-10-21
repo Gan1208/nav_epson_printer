@@ -62,7 +62,7 @@ fun PrinterSettingsScreen(
                 .padding(16.dp)
                 .fillMaxSize(),
         ) {
-            val busy = state.test == TestPrintStatus.Searching || state.test == TestPrintStatus.Printing
+            val busy = state.busy
             OutlinedTextField(
                 value = state.address,
                 enabled = !busy,

@@ -35,7 +35,11 @@ data class PrinterSettingsState(
     /** As typed, not yet saved. */
     val address: String,
     val test: TestPrintStatus = TestPrintStatus.Idle,
-)
+) {
+    /** Searching or printing: the IP and buttons are locked until it finishes. */
+    val busy: Boolean
+        get() = test == TestPrintStatus.Searching || test == TestPrintStatus.Printing
+}
 
 class PrinterSettingsViewModel(
     private val store: PrinterAddressStore,
@@ -56,8 +60,7 @@ class PrinterSettingsViewModel(
 
     /** Saves what was typed, then looks for the printer there and asks before printing. */
     fun testPrint() {
-        if (_state.value.test == TestPrintStatus.Searching) return
-        if (_state.value.test == TestPrintStatus.Printing) return
+        if (_state.value.busy) return
         save()
         val address = _state.value.address
         if (address.isEmpty()) {
