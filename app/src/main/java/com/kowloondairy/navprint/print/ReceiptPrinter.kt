@@ -19,11 +19,11 @@ interface ReceiptPrinter {
 
 /** Why a print did not finish, in words for the person at the printer. */
 enum class PrintProblem(val message: String) {
-    NO_ADDRESS("未設定打印機 IP，請去設定"),
-    UNREACHABLE("連唔到打印機，請檢查打印機有冇開，同手機係咪連住公司 wifi"),
-    BUSY("打印機忙緊，請等一陣再試"),
-    NO_PAPER("打印機冇紙"),
-    COVER_OPEN("打印機蓋打開咗"),
+    NO_ADDRESS("未設定打印機 IP，請前往設定"),
+    UNREACHABLE("無法連接打印機，請檢查打印機是否已開啟，以及手機是否已連接公司 wifi"),
+    BUSY("打印機忙碌中，請稍後再試"),
+    NO_PAPER("打印機缺紙"),
+    COVER_OPEN("打印機蓋未關上"),
     OTHER("打印失敗"),
 }
 

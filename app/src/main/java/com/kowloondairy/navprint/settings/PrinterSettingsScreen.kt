@@ -73,12 +73,12 @@ fun PrinterSettingsScreen(
                     Text("儲存")
                 }
                 Button(onClick = onTestPrint, enabled = !testing, modifier = Modifier.weight(1f)) {
-                    Text(if (testing) "打印緊…" else "測試打印")
+                    Text(if (testing) "打印中…" else "測試打印")
                 }
             }
             when (val test = state.test) {
                 TestPrintStatus.Idle, TestPrintStatus.Printing -> Unit
-                TestPrintStatus.Passed -> Text("已送出測試打印。打印機有出紙就代表連到。")
+                TestPrintStatus.Passed -> Text("已送出測試打印。如打印機出紙，即表示連接成功。")
                 is TestPrintStatus.Failed -> Text(test.problem.message, color = MaterialTheme.colorScheme.error)
             }
         }

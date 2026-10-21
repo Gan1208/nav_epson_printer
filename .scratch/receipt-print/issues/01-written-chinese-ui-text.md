@@ -1,6 +1,6 @@
 # 01 — App 用字改書面語
 
-Status: open
+Status: resolved
 Type: task
 
 Spec: `.scratch/receipt-print/spec.md`（「用字」段）

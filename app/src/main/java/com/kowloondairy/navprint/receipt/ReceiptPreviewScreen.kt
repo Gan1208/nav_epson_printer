@@ -68,7 +68,7 @@ fun ReceiptPreviewScreen(
     LaunchedEffect(printStatus) {
         if (printStatus == PrintStatus.Printed) {
             onDismissPrintStatus()
-            snackbar.showSnackbar("印好喇")
+            snackbar.showSnackbar("打印完成")
         }
     }
 
@@ -101,12 +101,12 @@ fun ReceiptPreviewScreen(
                     onClick = { print(allPages) },
                     enabled = canPrint,
                     modifier = Modifier.weight(1f),
-                ) { Text(if (printing) "打印緊…" else "打印（三頁）") }
+                ) { Text(if (printing) "打印中…" else "打印（三頁）") }
                 OutlinedButton(
                     onClick = { print(listOf(page)) },
                     enabled = canPrint,
                     modifier = Modifier.weight(1f),
-                ) { Text("只印呢頁") }
+                ) { Text("只打印此頁") }
             }
             if (printing) LinearProgressIndicator(Modifier.fillMaxWidth())
             TabRow(selectedTabIndex = page.ordinal) {
@@ -159,7 +159,7 @@ fun ReceiptPreviewScreen(
             text = { Text(printStatus.problem.message) },
             confirmButton = {
                 TextButton(onClick = { print(printStatus.pages) }) {
-                    Text(if (printStatus.pages.size > 1) "重印全部三頁" else "重印呢頁")
+                    Text(if (printStatus.pages.size > 1) "重印全部三頁" else "重印此頁")
                 }
             },
             dismissButton = {

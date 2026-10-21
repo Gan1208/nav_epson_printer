@@ -65,7 +65,7 @@ private val fieldHeight = 56.dp
 private val categoryChoices: List<Category?> = listOf(null) + Category.entries
 
 /** Shortcut chips under the date field, as days after today. */
-private val quickDates = listOf(0L to "今日", 1L to "聽日")
+private val quickDates = listOf(0L to "今日", 1L to "明日")
 
 /** e.g. 2026-10-17（六） */
 private fun LocalDate.display(): String =
@@ -155,7 +155,7 @@ private fun DeliveryDateField(today: LocalDate, date: LocalDate, onChosen: (Loca
             onValueChange = {},
             readOnly = true,
             label = { Text("日期") },
-            trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "揀日期") },
+            trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "選擇日期") },
             shape = fieldShape,
             interactionSource = interactions,
             modifier = Modifier.fillMaxWidth(),
@@ -238,7 +238,7 @@ private fun DeliveryNoteField(
     val emptyText = when (loadStatus) {
         LoadStatus.LOADING -> "載入中…"
         LoadStatus.FAILED -> "連線失敗"
-        LoadStatus.LOADED -> "冇送貨單"
+        LoadStatus.LOADED -> "沒有送貨單"
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
