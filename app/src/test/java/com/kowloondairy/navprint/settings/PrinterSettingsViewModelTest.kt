@@ -38,12 +38,12 @@ class PrinterSettingsViewModelTest {
     private class FakeFinder(var model: String? = "TM-m30II") : PrinterFinder {
         val searched = mutableListOf<String>()
 
-        /** When set, the search lasts until this completes. */
-        var answer: CompletableDeferred<Unit>? = null
+        /** When set, the search stays open until this completes. */
+        var searchHeld: CompletableDeferred<Unit>? = null
 
         override suspend fun findModel(address: String): String? {
             searched += address
-            answer?.await()
+            searchHeld?.await()
             return model
         }
     }
@@ -143,7 +143,7 @@ class PrinterSettingsViewModelTest {
     @Test
     fun `pressing test print again while searching starts no second search`() {
         val viewModel = viewModel()
-        finder.answer = CompletableDeferred()
+        finder.searchHeld = CompletableDeferred()
 
         viewModel.testPrint()
         viewModel.testPrint()
@@ -161,6 +161,19 @@ class PrinterSettingsViewModelTest {
 
         assertEquals(
             TestPrintStatus.Asking("此 IP 的打印機型號為 TM-T82III，不是 TM-m30II。仍要打印測試頁？"),
+            viewModel.state.value.test,
+        )
+    }
+
+    @Test
+    fun `a TM-m30III is another model, not a variant of the TM-m30II`() {
+        val viewModel = viewModel()
+        finder.model = "TM-m30III"
+
+        viewModel.testPrint()
+
+        assertEquals(
+            TestPrintStatus.Asking("此 IP 的打印機型號為 TM-m30III，不是 TM-m30II。仍要打印測試頁？"),
             viewModel.state.value.test,
         )
     }

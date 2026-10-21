@@ -17,6 +17,9 @@ import kotlinx.coroutines.launch
 /** The printer this app is built for. Variants such as `TM-m30II-H` count too. */
 private const val EXPECTED_MODEL = "TM-m30II"
 
+/** `TM-m30II-H` is a variant; `TM-m30III` is a different printer. */
+private fun isExpectedModel(model: String) = model == EXPECTED_MODEL || model.startsWith("$EXPECTED_MODEL-")
+
 sealed interface TestPrintStatus {
     data object Idle : TestPrintStatus
     data object Searching : TestPrintStatus
@@ -62,7 +65,7 @@ class PrinterSettingsViewModel(
             val model = finder.findModel(address)
             val question = when {
                 model == null -> "找不到此 IP 的打印機型號。仍要打印測試頁？"
-                model.startsWith(EXPECTED_MODEL) -> "找到打印機 $model（$address）。確定打印測試頁？"
+                isExpectedModel(model) -> "找到打印機 $model（$address）。確定打印測試頁？"
                 else -> "此 IP 的打印機型號為 $model，不是 $EXPECTED_MODEL。仍要打印測試頁？"
             }
             _state.update { it.copy(test = TestPrintStatus.Asking(question)) }
