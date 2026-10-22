@@ -3,30 +3,36 @@ package com.kowloondairy.navprint.landing
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -44,9 +50,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.LocalDate
@@ -57,7 +66,7 @@ import java.util.Locale
 
 private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-/** Every control uses the same rounded rectangle as the 送貨單 field. */
+/** Every control uses the same rounded rectangle as the date field. */
 private val fieldShape = RoundedCornerShape(4.dp)
 private val fieldHeight = 56.dp
 
@@ -77,8 +86,9 @@ fun LandingScreen(
     state: LandingUiState,
     onDeliveryDateChosen: (LocalDate) -> Unit,
     onCategoryChosen: (Category?) -> Unit,
-    onDeliveryNoteChosen: (DeliveryNote) -> Unit,
-    onWholeDayChosen: () -> Unit,
+    onQuery: () -> Unit,
+    onToggle: (DeliveryNote) -> Unit,
+    onToggleAll: () -> Unit,
     onRetry: () -> Unit,
     onPreview: () -> Unit,
     onSettings: () -> Unit,
@@ -110,31 +120,34 @@ fun LandingScreen(
                     .padding(16.dp)
                     .fillMaxWidth()
                     .height(fieldHeight),
-            ) { Text("預覽") }
+            ) { Text(if (state.canPrint) "預覽（${state.toPreview.size} 張）" else "預覽") }
         },
     ) { padding ->
         Column(
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
+                .padding(start = 16.dp, top = 16.dp, end = 16.dp)
                 .fillMaxSize(),
         ) {
-            // Sits a quarter of the way down the free space: above centre, off the top.
-            Spacer(Modifier.weight(1f))
-            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                DeliveryDateField(state.today, state.deliveryDate, onDeliveryDateChosen)
-                CategoryField(state.category, onCategoryChosen)
-                DeliveryNoteField(
-                    selected = state.selectedDeliveryNote,
-                    wholeDay = state.wholeDay,
-                    options = state.deliveryNoteOptions,
-                    loadStatus = state.loadStatus,
-                    onChosen = onDeliveryNoteChosen,
-                    onWholeDayChosen = onWholeDayChosen,
-                    onRetry = onRetry,
-                )
+            DeliveryDateField(state.today, state.deliveryDate, onDeliveryDateChosen)
+            CategoryField(state.category, onCategoryChosen)
+            OutlinedButton(
+                onClick = onQuery,
+                shape = fieldShape,
+                modifier = Modifier.fillMaxWidth().height(fieldHeight),
+            ) {
+                Icon(Icons.Filled.Search, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("查詢")
             }
-            Spacer(Modifier.weight(3f))
+            DeliveryNoteList(
+                state = state,
+                onToggle = onToggle,
+                onToggleAll = onToggleAll,
+                onRetry = onRetry,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -225,76 +238,81 @@ private fun CategoryField(category: Category?, onChosen: (Category?) -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** The 送貨單 found by 查詢, each with a tick; or why there are none. */
 @Composable
-private fun DeliveryNoteField(
-    selected: DeliveryNote?,
-    wholeDay: Boolean,
-    options: List<DeliveryNote>,
-    loadStatus: LoadStatus,
-    onChosen: (DeliveryNote) -> Unit,
-    onWholeDayChosen: () -> Unit,
+private fun DeliveryNoteList(
+    state: LandingUiState,
+    onToggle: (DeliveryNote) -> Unit,
+    onToggleAll: () -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val hasOptions = options.isNotEmpty()
-
-    // The placeholder only shows when focused, so say why it is empty in the value itself.
-    val emptyText = when (loadStatus) {
-        LoadStatus.LOADING -> "載入中…"
-        LoadStatus.FAILED -> "連線失敗"
-        LoadStatus.LOADED -> "沒有送貨單"
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ExposedDropdownMenuBox(
-            expanded = expanded && hasOptions,
-            onExpandedChange = { expanded = it && hasOptions },
-        ) {
-            OutlinedTextField(
-                value = when {
-                    wholeDay -> "全日（${options.size} 張）"
-                    selected != null -> selected.displayNumber
-                    hasOptions -> ""
-                    else -> emptyText
-                },
-                onValueChange = {},
-                readOnly = true,
-                enabled = hasOptions,
-                label = { Text("送貨單") },
-                isError = loadStatus == LoadStatus.FAILED,
-                placeholder = { Text("請選擇") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                shape = fieldShape,
-                modifier = Modifier
-                    .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = hasOptions)
-                    .fillMaxWidth(),
-            )
-            ExposedDropdownMenu(expanded = expanded && hasOptions, onDismissRequest = { expanded = false }) {
-                DropdownMenuItem(
-                    text = { Text("全日（${options.size} 張）") },
-                    onClick = {
-                        onWholeDayChosen()
-                        expanded = false
-                    },
-                )
-                options.forEach { note ->
-                    DropdownMenuItem(
-                        text = { Text("${note.displayNumber}（${note.category.label}）") },
-                        onClick = {
-                            onChosen(note)
-                            expanded = false
-                        },
-                    )
+    val notes = state.deliveryNoteOptions
+    if (notes.isEmpty()) {
+        Box(contentAlignment = Alignment.Center, modifier = modifier.fillMaxWidth()) {
+            when (state.loadStatus) {
+                LoadStatus.NOT_QUERIED -> Hint("揀好日期同類別，撳「查詢」")
+                LoadStatus.LOADING -> CircularProgressIndicator()
+                LoadStatus.LOADED -> Hint("沒有送貨單")
+                LoadStatus.FAILED -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("連線失敗", color = MaterialTheme.colorScheme.error)
+                    OutlinedButton(onClick = onRetry, shape = fieldShape) { Text("重試") }
                 }
             }
         }
-        if (loadStatus == LoadStatus.FAILED) {
-            OutlinedButton(
-                onClick = onRetry,
-                shape = fieldShape,
-                modifier = Modifier.fillMaxWidth().height(fieldHeight),
-            ) { Text("重試") }
+        return
+    }
+
+    Column(modifier) {
+        TickRow(checked = state.allSelected, onToggle = onToggleAll) {
+            Text("全選", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Hint("已選 ${state.toPreview.size}/${notes.size}")
         }
+        HorizontalDivider()
+        LazyColumn(Modifier.fillMaxWidth()) {
+            items(notes, key = { it.number }) { note ->
+                TickRow(checked = note.number in state.selected, onToggle = { onToggle(note) }) {
+                    DeliveryNoteRow(note, Modifier.weight(1f))
+                }
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** The whole row ticks and unticks, not just its box. */
+@Composable
+private fun TickRow(checked: Boolean, onToggle: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() })
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Spacer(Modifier.width(12.dp))
+        content()
+    }
+}
+
+/** e.g. `1799**   王小明   牛奶`, with its 訂單號 underneath. */
+@Composable
+private fun DeliveryNoteRow(note: DeliveryNote, modifier: Modifier = Modifier) {
+    Column(modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(note.displayNumber, fontWeight = FontWeight.Bold)
+            Text(note.customerName, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Hint(note.category.label)
+        }
+        if (note.orderNumbers.isNotEmpty()) Hint(note.orderNumbers.joinToString(", "))
     }
 }

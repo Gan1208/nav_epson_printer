@@ -48,7 +48,7 @@ private val allPages = ReceiptPage.entries.toList()
 
 /**
  * Every page of every 收據 in [deliveryNotes], one under the other.
- * More than one 送貨單 is a 全日打印: they print one at a time, with no single-page printing.
+ * More than one 送貨單 is a 多張打印: they print one at a time, with no single-page printing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +63,7 @@ fun ReceiptPreviewScreen(
     onStop: () -> Unit,
     onDismissPrintStatus: () -> Unit,
 ) {
-    val wholeDay = deliveryNotes.size > 1
+    val several = deliveryNotes.size > 1
     val snackbar = remember { SnackbarHostState() }
     val printing = printStatus is PrintStatus.Printing
 
@@ -110,7 +110,7 @@ fun ReceiptPreviewScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (wholeDay) "預覽 全日（${deliveryNotes.size} 張）"
+                        if (several) "預覽（${deliveryNotes.size} 張）"
                         else "預覽 ${deliveryNotes.first().displayNumber}"
                     )
                 },
@@ -141,15 +141,15 @@ fun ReceiptPreviewScreen(
                 ) {
                     Text(
                         when {
-                            printStatus is PrintStatus.Printing && wholeDay ->
+                            printStatus is PrintStatus.Printing && several ->
                                 "打印中 ${minOf(printStatus.done + 1, printStatus.total)}/${printStatus.total}…"
                             printing -> "打印中…"
-                            wholeDay -> "打印全日（${deliveryNotes.size} 張送貨單）"
+                            several -> "打印（${deliveryNotes.size} 張送貨單）"
                             else -> "打印（三頁）"
                         }
                     )
                 }
-                if (printStatus is PrintStatus.Printing && wholeDay) {
+                if (printStatus is PrintStatus.Printing && several) {
                     OutlinedButton(onClick = onStop, enabled = !printStatus.stopping) {
                         Text(if (printStatus.stopping) "停止中…" else "停止")
                     }
@@ -175,7 +175,7 @@ fun ReceiptPreviewScreen(
                         state.receipts.forEach { PrintPages(it, layers.getValue(it.deliveryNote.number)) }
                         ReceiptList(
                             receipts = state.receipts,
-                            wholeDay = wholeDay,
+                            several = several,
                             canPrint = canPrint,
                             onPrintPage = { note, page -> print(listOf(PrintJob(note, listOf(page)))) },
                         )
@@ -234,11 +234,11 @@ fun ReceiptPreviewScreen(
     }
 }
 
-/** Each 收據's pages in print order; for 全日 each 送貨單 gets a heading. */
+/** Each 收據's pages in print order; for 多張打印 each 送貨單 gets a heading. */
 @Composable
 private fun ReceiptList(
     receipts: List<Receipt>,
-    wholeDay: Boolean,
+    several: Boolean,
     canPrint: Boolean,
     onPrintPage: (DeliveryNote, ReceiptPage) -> Unit,
 ) {
@@ -250,7 +250,7 @@ private fun ReceiptList(
     ) {
         receipts.forEachIndexed { index, receipt ->
             val note = receipt.deliveryNote
-            if (wholeDay) {
+            if (several) {
                 item(key = note.number) {
                     Text(
                         "${index + 1}. 送貨單 ${note.displayNumber}（${note.category.label}）",
@@ -268,7 +268,7 @@ private fun ReceiptList(
                             modifier = Modifier.width(PaperWidth),
                         ) {
                             Text(page.label, style = MaterialTheme.typography.labelLarge)
-                            if (!wholeDay) {
+                            if (!several) {
                                 TextButton(onClick = { onPrintPage(note, page) }, enabled = canPrint) {
                                     Text("只打印此頁")
                                 }

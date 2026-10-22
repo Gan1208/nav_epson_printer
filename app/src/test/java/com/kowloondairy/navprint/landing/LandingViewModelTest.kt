@@ -46,29 +46,33 @@ class LandingViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
+    private fun queried(): LandingViewModel =
+        LandingViewModel(today = today, deliveryNotes = source).also { it.query() }
+
     @Test
-    fun `starts on tomorrow, all categories, no delivery note chosen`() {
+    fun `starts on tomorrow, all categories, and asks nothing until 查詢`() {
         val viewModel = LandingViewModel(today = today, deliveryNotes = source)
 
         val state = viewModel.state.value
         assertEquals(tomorrow, state.deliveryDate)
         assertNull(state.category)
-        assertNull(state.selectedDeliveryNote)
-        assertEquals(listOf(tomorrow to null), source.asked)
+        assertEquals(LoadStatus.NOT_QUERIED, state.loadStatus)
+        assertEquals(emptyList<Pair<LocalDate, Category?>>(), source.asked)
     }
 
     @Test
-    fun `offers the delivery notes found for the chosen date and category`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
-
+    fun `查詢 lists the delivery notes for the chosen date and category`() {
+        val viewModel = queried()
         assertEquals(listOf(milkTomorrow, iceCreamTomorrow), viewModel.state.value.deliveryNoteOptions)
 
         viewModel.chooseCategory(Category.ICE_CREAM)
+        viewModel.query()
         assertEquals(tomorrow to Category.ICE_CREAM, source.asked.last())
         assertEquals(listOf(iceCreamTomorrow), viewModel.state.value.deliveryNoteOptions)
 
         viewModel.chooseCategory(null)
         viewModel.chooseDeliveryDate(today)
+        viewModel.query()
         assertEquals(today to null, source.asked.last())
         assertEquals(listOf(milkToday), viewModel.state.value.deliveryNoteOptions)
     }
@@ -80,6 +84,7 @@ class LandingViewModelTest {
             override suspend fun find(deliveryDate: LocalDate, category: Category?) = answer.await()
         }
         val viewModel = LandingViewModel(today = today, deliveryNotes = slowSource)
+        viewModel.query()
 
         assertEquals(LoadStatus.LOADING, viewModel.state.value.loadStatus)
 
@@ -91,7 +96,7 @@ class LandingViewModelTest {
     @Test
     fun `a failed load can be retried`() {
         source.failing = true
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+        val viewModel = queried()
 
         assertEquals(LoadStatus.FAILED, viewModel.state.value.loadStatus)
         assertEquals(emptyList<DeliveryNote>(), viewModel.state.value.deliveryNoteOptions)
@@ -103,70 +108,72 @@ class LandingViewModelTest {
     }
 
     @Test
-    fun `changing the category clears the chosen delivery note`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
-
-        viewModel.chooseDeliveryNote(milkTomorrow)
-        assertEquals(milkTomorrow, viewModel.state.value.selectedDeliveryNote)
+    fun `changing the category clears the list and the ticks`() {
+        val viewModel = queried()
+        viewModel.toggle(milkTomorrow)
 
         viewModel.chooseCategory(Category.MILK)
-        assertNull(viewModel.state.value.selectedDeliveryNote)
-    }
-
-    @Test
-    fun `changing the delivery date clears the chosen delivery note`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
-
-        viewModel.chooseDeliveryNote(milkTomorrow)
-        assertEquals(milkTomorrow, viewModel.state.value.selectedDeliveryNote)
-
-        viewModel.chooseDeliveryDate(today)
-        assertNull(viewModel.state.value.selectedDeliveryNote)
-    }
-
-    @Test
-    fun `print and preview are allowed only once a delivery note is chosen`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
-
-        assertFalse(viewModel.state.value.canPrint)
-
-        viewModel.chooseDeliveryNote(milkTomorrow)
-        assertTrue(viewModel.state.value.canPrint)
-    }
-
-    @Test
-    fun `全日 previews every delivery note in the list`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
-        viewModel.chooseDeliveryNote(milkTomorrow)
-
-        viewModel.chooseWholeDay()
 
         val state = viewModel.state.value
-        assertTrue(state.wholeDay)
-        assertNull(state.selectedDeliveryNote)
-        assertEquals(listOf(milkTomorrow, iceCreamTomorrow), state.toPreview)
-        assertTrue(state.canPrint)
+        assertEquals(LoadStatus.NOT_QUERIED, state.loadStatus)
+        assertEquals(emptyList<DeliveryNote>(), state.deliveryNoteOptions)
+        assertFalse(state.canPrint)
     }
 
     @Test
-    fun `choosing one delivery note replaces 全日`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
-        viewModel.chooseWholeDay()
+    fun `changing the delivery date clears the list and the ticks`() {
+        val viewModel = queried()
+        viewModel.toggle(milkTomorrow)
 
-        viewModel.chooseDeliveryNote(iceCreamTomorrow)
+        viewModel.chooseDeliveryDate(today)
 
-        assertFalse(viewModel.state.value.wholeDay)
+        assertEquals(LoadStatus.NOT_QUERIED, viewModel.state.value.loadStatus)
+        assertFalse(viewModel.state.value.canPrint)
+    }
+
+    @Test
+    fun `choosing the same date again keeps the list`() {
+        val viewModel = queried()
+        viewModel.toggle(milkTomorrow)
+
+        viewModel.chooseDeliveryDate(tomorrow)
+
+        assertEquals(listOf(milkTomorrow), viewModel.state.value.toPreview)
+    }
+
+    @Test
+    fun `查詢 again starts with nothing ticked`() {
+        val viewModel = queried()
+        viewModel.toggle(milkTomorrow)
+
+        viewModel.query()
+
+        assertFalse(viewModel.state.value.canPrint)
+    }
+
+    @Test
+    fun `previews the ticked delivery notes in list order`() {
+        val viewModel = queried()
+        assertFalse(viewModel.state.value.canPrint)
+
+        viewModel.toggle(iceCreamTomorrow)
+        viewModel.toggle(milkTomorrow)
+        assertEquals(listOf(milkTomorrow, iceCreamTomorrow), viewModel.state.value.toPreview)
+
+        viewModel.toggle(milkTomorrow)
         assertEquals(listOf(iceCreamTomorrow), viewModel.state.value.toPreview)
     }
 
     @Test
-    fun `changing the category clears 全日`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
-        viewModel.chooseWholeDay()
+    fun `全選 ticks every delivery note, and again unticks them all`() {
+        val viewModel = queried()
+        viewModel.toggle(milkTomorrow)
 
-        viewModel.chooseCategory(Category.MILK)
+        viewModel.toggleAll()
+        assertTrue(viewModel.state.value.allSelected)
+        assertEquals(listOf(milkTomorrow, iceCreamTomorrow), viewModel.state.value.toPreview)
 
-        assertFalse(viewModel.state.value.wholeDay)
+        viewModel.toggleAll()
         assertFalse(viewModel.state.value.canPrint)
     }
 }

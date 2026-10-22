@@ -44,6 +44,20 @@ class SqlDeliveryNoteSourceTest {
     }
 
     @Test
+    fun `a 送貨單 lists each of its 訂單 once and is named after the first`() {
+        val day = LocalDate.of(2026, 10, 19)
+        fun row(location: String, order: String, name: String) =
+            DeliveryNote("HDDN1", day, Category.MILK, orderNumbers = listOf(order), customerName = "$name@$location")
+        // 92 and 93 each carry part of SO2; SO1 only ships from 93.
+        val rows = listOf(row("92", "SO2", "Chan"), row("93", "SO1", "Wong"), row("93", "SO2", "Chan"))
+
+        val merged = mergeByNumber(rows).single()
+
+        assertEquals(listOf("SO1", "SO2"), merged.orderNumbers)
+        assertEquals("Wong@93", merged.customerName)
+    }
+
+    @Test
     fun `connection url names the instance only when there is one`() {
         val settings = SqlConnectionSettings("10.0.0.5", 1433, "", "KDLNAV_HD", "u", "p")
 

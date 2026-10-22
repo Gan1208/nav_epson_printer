@@ -55,17 +55,18 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
     private fun query(deliveryDate: LocalDate, category: Category?): List<DeliveryNote> {
         val locations = locationCodesFor(category)
         val placeholders = locations.joinToString { "?" }
-        // A 送貨單 has many lines; one row per (Delivery ID, location) is enough to know its 類別.
+        // A 送貨單 has many lines; one row per (Delivery ID, location, 訂單) gives its 類別, 訂單 and customer.
         // Each line's 訂單 is [Document No_]; a 訂單 with no header or a NULL flag counts as not a 訂閱單.
         val sql = """
-            SELECT l.[Delivery ID], l.[Location Code],
-                   MAX(CASE WHEN h.[MagIs_order_subscription] > 0 THEN 1 ELSE 0 END)
+            SELECT l.[Delivery ID], l.[Location Code], l.[Document No_],
+                   MAX(CASE WHEN h.[MagIs_order_subscription] > 0 THEN 1 ELSE 0 END),
+                   MAX(h.[Ship-to Name])
             FROM [dbo].[Home Delivery${'$'}Sales Line] l
             LEFT JOIN [dbo].[Home Delivery${'$'}Sales Header] h ON h.[No_] = l.[Document No_]
             WHERE l.[Requested Delivery Date] >= ? AND l.[Requested Delivery Date] < ?
               AND l.[Location Code] IN ($placeholders)
               AND l.[Delivery ID] <> ''
-            GROUP BY l.[Delivery ID], l.[Location Code]
+            GROUP BY l.[Delivery ID], l.[Location Code], l.[Document No_]
             ORDER BY l.[Delivery ID]
         """.trimIndent()
 
@@ -80,8 +81,14 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
                     while (rows.next()) {
                         val number = rows.getString(1).trim()
                         val noteCategory = categoryOf(rows.getString(2).trim()) ?: continue
-                        val hasSubscriptionOrder = rows.getInt(3) > 0
-                        notes += DeliveryNote(number, deliveryDate, noteCategory, hasSubscriptionOrder)
+                        notes += DeliveryNote(
+                            number = number,
+                            deliveryDate = deliveryDate,
+                            category = noteCategory,
+                            hasSubscriptionOrder = rows.getInt(4) > 0,
+                            orderNumbers = listOf(rows.getString(3).orEmpty().trim()),
+                            customerName = rows.getString(5).orEmpty().trim(),
+                        )
                     }
                 }
                 return mergeByNumber(notes)
@@ -105,10 +112,17 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
         fun categoryOf(locationCode: String): Category? =
             locationsByCategory.entries.firstOrNull { locationCode in it.value }?.key
 
-        /** A milk 送貨單 can have lines in both 92 and 93: keep one, marked if either row has a 訂閱單. */
+        /**
+         * Rows come one per 訂單, and a milk 送貨單 can have lines in both 92 and 93: keep one 送貨單
+         * with all its 訂單, marked if any has a 訂閱單, named after its first 訂單 like the 收據 is.
+         */
         fun mergeByNumber(notes: List<DeliveryNote>): List<DeliveryNote> =
             notes.groupBy { it.number }.values.map { same ->
-                same.first().copy(hasSubscriptionOrder = same.any { it.hasSubscriptionOrder })
+                val byOrder = same.sortedBy { it.orderNumbers.firstOrNull().orEmpty() }
+                byOrder.first().copy(
+                    hasSubscriptionOrder = same.any { it.hasSubscriptionOrder },
+                    orderNumbers = byOrder.flatMap { it.orderNumbers }.distinct(),
+                )
             }
     }
 }

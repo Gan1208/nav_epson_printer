@@ -13,6 +13,10 @@ data class DeliveryNote(
     val category: Category,
     /** True when at least one 訂單 on this 送貨單 is a 訂閱單. */
     val hasSubscriptionOrder: Boolean = false,
+    /** Every 訂單 on this 送貨單, smallest first. */
+    val orderNumbers: List<String> = emptyList(),
+    /** The name the 收據 shows: from the first of [orderNumbers]. */
+    val customerName: String = "",
 ) {
     /** What people see: the last four characters of [number], plus `**` for a 訂閱單. */
     val displayNumber: String
