@@ -133,4 +133,40 @@ class LandingViewModelTest {
         viewModel.chooseDeliveryNote(milkTomorrow)
         assertTrue(viewModel.state.value.canPrint)
     }
+
+    @Test
+    fun `全日 previews every delivery note in the list`() {
+        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+        viewModel.chooseDeliveryNote(milkTomorrow)
+
+        viewModel.chooseWholeDay()
+
+        val state = viewModel.state.value
+        assertTrue(state.wholeDay)
+        assertNull(state.selectedDeliveryNote)
+        assertEquals(listOf(milkTomorrow, iceCreamTomorrow), state.toPreview)
+        assertTrue(state.canPrint)
+    }
+
+    @Test
+    fun `choosing one delivery note replaces 全日`() {
+        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+        viewModel.chooseWholeDay()
+
+        viewModel.chooseDeliveryNote(iceCreamTomorrow)
+
+        assertFalse(viewModel.state.value.wholeDay)
+        assertEquals(listOf(iceCreamTomorrow), viewModel.state.value.toPreview)
+    }
+
+    @Test
+    fun `changing the category clears 全日`() {
+        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+        viewModel.chooseWholeDay()
+
+        viewModel.chooseCategory(Category.MILK)
+
+        assertFalse(viewModel.state.value.wholeDay)
+        assertFalse(viewModel.state.value.canPrint)
+    }
 }

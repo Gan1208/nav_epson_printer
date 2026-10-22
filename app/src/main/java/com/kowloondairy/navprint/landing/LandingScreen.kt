@@ -78,6 +78,7 @@ fun LandingScreen(
     onDeliveryDateChosen: (LocalDate) -> Unit,
     onCategoryChosen: (Category?) -> Unit,
     onDeliveryNoteChosen: (DeliveryNote) -> Unit,
+    onWholeDayChosen: () -> Unit,
     onRetry: () -> Unit,
     onPreview: () -> Unit,
     onSettings: () -> Unit,
@@ -125,9 +126,11 @@ fun LandingScreen(
                 CategoryField(state.category, onCategoryChosen)
                 DeliveryNoteField(
                     selected = state.selectedDeliveryNote,
+                    wholeDay = state.wholeDay,
                     options = state.deliveryNoteOptions,
                     loadStatus = state.loadStatus,
                     onChosen = onDeliveryNoteChosen,
+                    onWholeDayChosen = onWholeDayChosen,
                     onRetry = onRetry,
                 )
             }
@@ -226,9 +229,11 @@ private fun CategoryField(category: Category?, onChosen: (Category?) -> Unit) {
 @Composable
 private fun DeliveryNoteField(
     selected: DeliveryNote?,
+    wholeDay: Boolean,
     options: List<DeliveryNote>,
     loadStatus: LoadStatus,
     onChosen: (DeliveryNote) -> Unit,
+    onWholeDayChosen: () -> Unit,
     onRetry: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -247,7 +252,12 @@ private fun DeliveryNoteField(
             onExpandedChange = { expanded = it && hasOptions },
         ) {
             OutlinedTextField(
-                value = selected?.displayNumber ?: if (hasOptions) "" else emptyText,
+                value = when {
+                    wholeDay -> "全日（${options.size} 張）"
+                    selected != null -> selected.displayNumber
+                    hasOptions -> ""
+                    else -> emptyText
+                },
                 onValueChange = {},
                 readOnly = true,
                 enabled = hasOptions,
@@ -261,6 +271,13 @@ private fun DeliveryNoteField(
                     .fillMaxWidth(),
             )
             ExposedDropdownMenu(expanded = expanded && hasOptions, onDismissRequest = { expanded = false }) {
+                DropdownMenuItem(
+                    text = { Text("全日（${options.size} 張）") },
+                    onClick = {
+                        onWholeDayChosen()
+                        expanded = false
+                    },
+                )
                 options.forEach { note ->
                     DropdownMenuItem(
                         text = { Text("${note.displayNumber}（${note.category.label}）") },

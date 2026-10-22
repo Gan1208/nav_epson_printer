@@ -154,7 +154,7 @@ private fun ColumnScope.DeliveryDetails(receipt: Receipt) {
     Image(
         painter = painterResource(R.drawable.kdl_receipt_logo),
         contentDescription = null,
-        modifier = Modifier.width(140.dp).align(Alignment.CenterHorizontally),
+        modifier = Modifier.width(154.dp).align(Alignment.CenterHorizontally),
     )
     Gap(20.dp)
     Text("Delivery Date :  ${receipt.deliveryDateText}")

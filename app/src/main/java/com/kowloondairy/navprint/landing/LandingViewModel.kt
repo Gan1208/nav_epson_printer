@@ -13,7 +13,7 @@ import java.time.LocalDate
 
 enum class LoadStatus { LOADING, LOADED, FAILED }
 
-/** [category] null means 全部. */
+/** [category] null means 全部. [wholeDay] means 全日 was chosen instead of one 送貨單. */
 data class LandingUiState(
     val today: LocalDate,
     val deliveryDate: LocalDate,
@@ -21,8 +21,13 @@ data class LandingUiState(
     val selectedDeliveryNote: DeliveryNote?,
     val deliveryNoteOptions: List<DeliveryNote>,
     val loadStatus: LoadStatus,
+    val wholeDay: Boolean = false,
 ) {
-    val canPrint: Boolean get() = selectedDeliveryNote != null
+    /** What 預覽 opens: every 送貨單 in the list for 全日, else the one chosen. */
+    val toPreview: List<DeliveryNote>
+        get() = if (wholeDay) deliveryNoteOptions else listOfNotNull(selectedDeliveryNote)
+
+    val canPrint: Boolean get() = toPreview.isNotEmpty()
 }
 
 class LandingViewModel(
@@ -59,7 +64,11 @@ class LandingViewModel(
     }
 
     fun chooseDeliveryNote(note: DeliveryNote) {
-        _state.update { it.copy(selectedDeliveryNote = note) }
+        _state.update { it.copy(selectedDeliveryNote = note, wholeDay = false) }
+    }
+
+    fun chooseWholeDay() {
+        _state.update { it.copy(selectedDeliveryNote = null, wholeDay = true) }
     }
 
     fun retry() = load()
@@ -68,7 +77,12 @@ class LandingViewModel(
     private fun load() {
         loading?.cancel()
         _state.update {
-            it.copy(selectedDeliveryNote = null, deliveryNoteOptions = emptyList(), loadStatus = LoadStatus.LOADING)
+            it.copy(
+                selectedDeliveryNote = null,
+                wholeDay = false,
+                deliveryNoteOptions = emptyList(),
+                loadStatus = LoadStatus.LOADING,
+            )
         }
         val (deliveryDate, category) = _state.value.let { it.deliveryDate to it.category }
         loading = viewModelScope.launch {

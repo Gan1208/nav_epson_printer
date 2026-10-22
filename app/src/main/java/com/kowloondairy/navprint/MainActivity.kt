@@ -42,26 +42,25 @@ class MainActivity : ComponentActivity() {
                     }
                 )
                 val state by viewModel.state.collectAsStateWithLifecycle()
-                var previewing by remember { mutableStateOf<DeliveryNote?>(null) }
+                var previewing by remember { mutableStateOf<List<DeliveryNote>?>(null) }
                 var inSettings by remember { mutableStateOf(false) }
 
-                val note = previewing
+                val notes = previewing
                 when {
                     inSettings -> {
                         BackHandler { inSettings = false }
                         PrinterSettings(onBack = { inSettings = false })
                     }
-                    note != null -> {
-                        BackHandler { previewing = null }
-                        ReceiptPreview(note, onBack = { previewing = null })
-                    }
+                    // The preview handles back itself, to ask first while printing.
+                    notes != null -> ReceiptPreview(notes, onBack = { previewing = null })
                     else -> LandingScreen(
                         state = state,
                         onDeliveryDateChosen = viewModel::chooseDeliveryDate,
                         onCategoryChosen = viewModel::chooseCategory,
                         onDeliveryNoteChosen = viewModel::chooseDeliveryNote,
+                        onWholeDayChosen = viewModel::chooseWholeDay,
                         onRetry = viewModel::retry,
-                        onPreview = { previewing = state.selectedDeliveryNote },
+                        onPreview = { previewing = state.toPreview },
                         onSettings = { inSettings = true },
                     )
                 }
@@ -70,22 +69,24 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun ReceiptPreview(note: DeliveryNote, onBack: () -> Unit) {
+    private fun ReceiptPreview(notes: List<DeliveryNote>, onBack: () -> Unit) {
         val viewModel: ReceiptPreviewViewModel = viewModel(
-            key = "receipt-${note.number}",
+            key = "receipt-${notes.joinToString(",") { it.number }}",
             factory = viewModelFactory {
-                initializer { ReceiptPreviewViewModel(note, SqlReceiptSource(navSqlSettings), printer) }
+                initializer { ReceiptPreviewViewModel(notes, SqlReceiptSource(navSqlSettings), printer) }
             },
         )
         val state by viewModel.state.collectAsStateWithLifecycle()
         val printStatus by viewModel.printStatus.collectAsStateWithLifecycle()
         ReceiptPreviewScreen(
-            note,
+            notes,
             state,
             printStatus,
             onBack = onBack,
             onRetry = viewModel::retry,
             onPrint = viewModel::print,
+            onRetryPrint = viewModel::retryPrint,
+            onStop = viewModel::stop,
             onDismissPrintStatus = viewModel::dismissPrintStatus,
         )
     }
