@@ -67,7 +67,7 @@ import java.util.Locale
 private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
 /** Every control uses the same rounded rectangle as the date field. */
-private val fieldShape = RoundedCornerShape(4.dp)
+private val fieldShape = RoundedCornerShape(12.dp)
 private val fieldHeight = 56.dp
 
 /** 全部 first, then each [Category]. */
@@ -124,7 +124,7 @@ fun LandingScreen(
         },
     ) { padding ->
         Column(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
                 .padding(padding)
                 .padding(start = 16.dp, top = 16.dp, end = 16.dp)
@@ -165,30 +165,28 @@ private fun DeliveryDateField(today: LocalDate, date: LocalDate, onChosen: (Loca
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // The shortcut chips sit beside the field, level with its box rather than its floating label.
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = date.display(),
             onValueChange = {},
             readOnly = true,
+            singleLine = true,
             label = { Text("日期") },
             trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = "選擇日期") },
             shape = fieldShape,
             interactionSource = interactions,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.weight(1f),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            quickDates.forEach { (daysAhead, label) ->
-                val quickDate = today.plusDays(daysAhead)
-                FilterChip(
-                    selected = date == quickDate,
-                    onClick = { onChosen(quickDate) },
-                    label = {
-                        Text(label, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    },
-                    shape = fieldShape,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+        quickDates.forEach { (daysAhead, label) ->
+            val quickDate = today.plusDays(daysAhead)
+            FilterChip(
+                selected = date == quickDate,
+                onClick = { onChosen(quickDate) },
+                label = { Text(label) },
+                shape = fieldShape,
+                modifier = Modifier.height(fieldHeight),
+            )
         }
     }
 
@@ -219,21 +217,19 @@ private fun DeliveryDateField(today: LocalDate, date: LocalDate, onChosen: (Loca
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CategoryField(category: Category?, onChosen: (Category?) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("類別")
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            categoryChoices.forEachIndexed { index, choice ->
-                SegmentedButton(
-                    selected = choice == category,
-                    onClick = { onChosen(choice) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = categoryChoices.size,
-                        baseShape = fieldShape,
-                    ),
-                    modifier = Modifier.height(fieldHeight),
-                ) { Text(choice?.label ?: "全部") }
-            }
+    // No 類別 heading: 全部 / 牛奶 / 雪糕 already say what this is.
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        categoryChoices.forEachIndexed { index, choice ->
+            SegmentedButton(
+                selected = choice == category,
+                onClick = { onChosen(choice) },
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = categoryChoices.size,
+                    baseShape = fieldShape,
+                ),
+                modifier = Modifier.height(fieldHeight),
+            ) { Text(choice?.label ?: "全部") }
         }
     }
 }
@@ -267,9 +263,9 @@ private fun DeliveryNoteList(
     }
 
     Column(modifier) {
+        // Its tick is 全選; the 預覽 button already shows how many are picked.
         TickRow(checked = state.allSelected, onToggle = onToggleAll) {
-            Text("全選", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Hint("已選 ${state.toPreview.size}/${notes.size}")
+            ThreeColumns("送貨單號", "名字", "訂單號", FontWeight.Bold, Modifier.weight(1f))
         }
         HorizontalDivider()
         LazyColumn(Modifier.fillMaxWidth()) {
@@ -304,15 +300,37 @@ private fun TickRow(checked: Boolean, onToggle: () -> Unit, content: @Composable
     }
 }
 
-/** e.g. `1799**   王小明   牛奶`, with its 訂單號 underneath. */
+/** e.g. `1799** | 王小明 | SO123 +2`, in three equal columns so they line up down the list. */
 @Composable
 private fun DeliveryNoteRow(note: DeliveryNote, modifier: Modifier = Modifier) {
-    Column(modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(note.displayNumber, fontWeight = FontWeight.Bold)
-            Text(note.customerName, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Hint(note.category.label)
+    val orders = note.orderNumbers
+    val orderText = when (orders.size) {
+        0 -> ""
+        1 -> orders.first()
+        else -> "${orders.first()} +${orders.size - 1}"
+    }
+    ThreeColumns(note.displayNumber, note.customerName, orderText, modifier = modifier)
+}
+
+/** Equal, centred columns, shared by the heading and every row so they line up. */
+@Composable
+private fun ThreeColumns(
+    first: String,
+    second: String,
+    third: String,
+    fontWeight: FontWeight? = null,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        listOf(first, second, third).forEach {
+            Text(
+                it,
+                fontWeight = fontWeight,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
         }
-        if (note.orderNumbers.isNotEmpty()) Hint(note.orderNumbers.joinToString(", "))
     }
 }
