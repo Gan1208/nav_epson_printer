@@ -47,7 +47,7 @@ val PaperWidth = 288.dp
 
 private val ink = Color.Black
 private val bodyStyle = TextStyle(color = ink, fontSize = 11.sp, fontWeight = FontWeight.Medium, lineHeight = 15.sp)
-private val packingStyle = TextStyle(color = ink, fontSize = 22.sp, fontWeight = FontWeight.Medium, lineHeight = 30.sp)
+private val packingStyle = TextStyle(color = ink, fontSize = 33.sp, fontWeight = FontWeight.Medium, lineHeight = 45.sp)
 private val labelWidth = 58.dp
 private val qrSize = 84.dp
 
@@ -139,7 +139,7 @@ private fun ColumnScope.PackingPage(receipt: Receipt) {
             Text(order.number)
             Rule()
             order.items.forEach { item ->
-                ItemLine(item.quantityText, 40.dp) { Text(item.shortName) }
+                ItemLine(item.quantityText, 60.dp) { Text(item.shortName) }
                 Rule()
             }
         }
@@ -154,7 +154,7 @@ private fun ColumnScope.DeliveryDetails(receipt: Receipt) {
     Image(
         painter = painterResource(R.drawable.kdl_receipt_logo),
         contentDescription = null,
-        modifier = Modifier.width(154.dp).align(Alignment.CenterHorizontally),
+        modifier = Modifier.width(231.dp).align(Alignment.CenterHorizontally),
     )
     Gap(20.dp)
     Text("Delivery Date :  ${receipt.deliveryDateText}")
