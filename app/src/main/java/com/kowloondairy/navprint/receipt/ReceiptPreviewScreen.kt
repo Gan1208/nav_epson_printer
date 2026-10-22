@@ -56,6 +56,8 @@ fun ReceiptPreviewScreen(
     deliveryNotes: List<DeliveryNote>,
     state: ReceiptPreviewState,
     printStatus: PrintStatus,
+    /** e.g. 「打印機：倉庫」, so staff see where it will print. */
+    printerLabel: String,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onPrint: (jobs: List<PrintJob>, render: RenderPage) -> Unit,
@@ -130,9 +132,15 @@ fun ReceiptPreviewScreen(
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             val canPrint = state is ReceiptPreviewState.Loaded && !printing
+            Text(
+                printerLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
+            )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 16.dp),
             ) {
                 Button(
                     onClick = printAll,

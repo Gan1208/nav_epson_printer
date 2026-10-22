@@ -21,6 +21,8 @@ import com.kowloondairy.navprint.landing.SqlDeliveryNoteSource
 import com.kowloondairy.navprint.print.EpsonPrinterFinder
 import com.kowloondairy.navprint.print.EpsonReceiptPrinter
 import com.kowloondairy.navprint.print.SharedPrefsPrinterAddressStore
+import com.kowloondairy.navprint.print.SharedPrefsSavedPrinterStore
+import com.kowloondairy.navprint.print.printerInUse
 import com.kowloondairy.navprint.receipt.ReceiptPreviewScreen
 import com.kowloondairy.navprint.receipt.ReceiptPreviewViewModel
 import com.kowloondairy.navprint.receipt.SqlReceiptSource
@@ -79,10 +81,13 @@ class MainActivity : ComponentActivity() {
         )
         val state by viewModel.state.collectAsStateWithLifecycle()
         val printStatus by viewModel.printStatus.collectAsStateWithLifecycle()
+        // Read each time the preview opens, so a printer chosen in 設定 shows up.
+        val printerLabel = remember { printerInUse(printerAddresses.address, savedPrinters.printers) }
         ReceiptPreviewScreen(
             notes,
             state,
             printStatus,
+            printerLabel = printerLabel,
             onBack = onBack,
             onRetry = viewModel::retry,
             onPrint = viewModel::print,
@@ -96,7 +101,7 @@ class MainActivity : ComponentActivity() {
     private fun PrinterSettings(onBack: () -> Unit) {
         val viewModel: PrinterSettingsViewModel = viewModel(
             factory = viewModelFactory {
-                initializer { PrinterSettingsViewModel(printerAddresses, printer, printerFinder) }
+                initializer { PrinterSettingsViewModel(printerAddresses, printer, printerFinder, savedPrinters) }
             },
         )
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -108,12 +113,18 @@ class MainActivity : ComponentActivity() {
             onTestPrint = viewModel::testPrint,
             onConfirmTestPrint = viewModel::confirmTestPrint,
             onCancelTestPrint = viewModel::cancelTestPrint,
+            onChoose = viewModel::choose,
+            onStartNaming = viewModel::startNaming,
+            onName = viewModel::name,
+            onCancelNaming = viewModel::cancelNaming,
+            onRemove = viewModel::remove,
         )
     }
 
     private val printerAddresses by lazy { SharedPrefsPrinterAddressStore(applicationContext) }
     private val printer by lazy { EpsonReceiptPrinter(applicationContext, printerAddresses) }
     private val printerFinder by lazy { EpsonPrinterFinder(applicationContext) }
+    private val savedPrinters by lazy { SharedPrefsSavedPrinterStore(applicationContext) }
 
     private val navSqlSettings = SqlConnectionSettings(
         host = BuildConfig.NAV_SQL_HOST,

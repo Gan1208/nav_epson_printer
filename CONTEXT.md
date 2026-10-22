@@ -39,6 +39,14 @@ _Avoid_: Invoice
 Printing the 收據 of two or more 送貨單 picked from the list for the chosen 送貨日 and 類別, in 送貨單號 order. One 送貨單's three pages all come out before the next 送貨單 starts. Picking every 送貨單 in the list prints the whole day.
 _Avoid_: Batch print, 全日打印 (it no longer has to be the whole day)
 
+**已儲存打印機 (Saved printer)**:
+A printer that has printed a test page from this phone, kept so it can be picked again. Each has an IP, and may have a model and a 打印機名稱. Only one is in use at a time; everything prints there.
+_Avoid_: Printer list, paired printer
+
+**打印機名稱 (Printer name)**:
+A name staff give a 已儲存打印機 so others can tell which one they are using, e.g. 倉庫. Optional, and two printers may share one; the IP tells them apart.
+_Avoid_: Label, alias
+
 **回單 (Return Receipt)**:
 The page the fleet team brings back. The customer signs it, and the fleet team writes how many bottles came back.
 

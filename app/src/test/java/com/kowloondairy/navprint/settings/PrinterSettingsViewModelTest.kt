@@ -6,6 +6,8 @@ import com.kowloondairy.navprint.print.PrintProblem
 import com.kowloondairy.navprint.print.PrinterAddressStore
 import com.kowloondairy.navprint.print.PrinterFinder
 import com.kowloondairy.navprint.print.ReceiptPrinter
+import com.kowloondairy.navprint.print.SavedPrinter
+import com.kowloondairy.navprint.print.SavedPrinterStore
 import com.kowloondairy.navprint.receipt.ReceiptPage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +17,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -22,6 +25,8 @@ import org.junit.Test
 class PrinterSettingsViewModelTest {
 
     private class MemoryStore(override var address: String = "") : PrinterAddressStore
+
+    private class MemorySavedPrinters(override var printers: List<SavedPrinter> = emptyList()) : SavedPrinterStore
 
     private class FakePrinter(private val store: PrinterAddressStore) : ReceiptPrinter {
         val testedAt = mutableListOf<String>()
@@ -55,8 +60,15 @@ class PrinterSettingsViewModelTest {
     private val store = MemoryStore("192.168.1.50")
     private val printer = FakePrinter(store)
     private val finder = FakeFinder()
+    private val saved = MemorySavedPrinters()
 
-    private fun viewModel() = PrinterSettingsViewModel(store, printer, finder)
+    private fun viewModel() = PrinterSettingsViewModel(store, printer, finder, saved)
+
+    private fun PrinterSettingsViewModel.passTestPrint(address: String) {
+        editAddress(address)
+        testPrint()
+        confirmTestPrint()
+    }
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -230,5 +242,86 @@ class PrinterSettingsViewModelTest {
 
         assertEquals(emptyList<String>(), printer.testedAt)
         assertEquals(TestPrintStatus.Idle, viewModel.state.value.test)
+    }
+
+    @Test
+    fun `a test print that goes through saves the printer and asks for its name`() {
+        val viewModel = viewModel()
+
+        viewModel.passTestPrint("192.168.1.60")
+
+        val printer = SavedPrinter("192.168.1.60", "TM-m30II")
+        assertEquals(listOf(printer), saved.printers)
+        assertEquals(printer, viewModel.state.value.naming)
+    }
+
+    @Test
+    fun `a failed test print saves nothing`() {
+        val viewModel = viewModel()
+        printer.failWith = PrintFailure(PrintProblem.UNREACHABLE)
+
+        viewModel.passTestPrint("192.168.1.60")
+
+        assertEquals(emptyList<SavedPrinter>(), saved.printers)
+        assertNull(viewModel.state.value.naming)
+    }
+
+    @Test
+    fun `naming a printer keeps the name`() {
+        val viewModel = viewModel()
+        viewModel.passTestPrint("192.168.1.60")
+
+        viewModel.name(viewModel.state.value.naming!!, " 倉庫 ")
+
+        assertEquals("倉庫", saved.printers.single().name)
+        assertNull(viewModel.state.value.naming)
+    }
+
+    @Test
+    fun `a printer seen before moves to the top, keeps its name and is not asked again`() {
+        saved.printers = listOf(SavedPrinter("192.168.1.61", null, "寫字樓"), SavedPrinter("192.168.1.60", null, "倉庫"))
+        val viewModel = viewModel()
+
+        viewModel.passTestPrint("192.168.1.60")
+
+        assertEquals(
+            listOf(SavedPrinter("192.168.1.60", "TM-m30II", "倉庫"), SavedPrinter("192.168.1.61", null, "寫字樓")),
+            saved.printers,
+        )
+        assertNull(viewModel.state.value.naming)
+    }
+
+    @Test
+    fun `choosing a saved printer puts it in use`() {
+        val other = SavedPrinter("192.168.1.61", "TM-m30II", "寫字樓")
+        saved.printers = listOf(other)
+        val viewModel = viewModel()
+
+        viewModel.choose(other)
+
+        assertEquals("192.168.1.61", store.address)
+        assertEquals("192.168.1.61", viewModel.state.value.inUse)
+        assertEquals("192.168.1.61", viewModel.state.value.address)
+    }
+
+    @Test
+    fun `typing an IP does not put it in use until saved`() {
+        val viewModel = viewModel()
+
+        viewModel.editAddress("192.168.1.61")
+
+        assertEquals("192.168.1.50", viewModel.state.value.inUse)
+    }
+
+    @Test
+    fun `removing a saved printer keeps the IP in use`() {
+        val inUse = SavedPrinter("192.168.1.50", "TM-m30II", "倉庫")
+        saved.printers = listOf(inUse)
+        val viewModel = viewModel()
+
+        viewModel.remove(inUse)
+
+        assertEquals(emptyList<SavedPrinter>(), saved.printers)
+        assertEquals("192.168.1.50", store.address)
     }
 }

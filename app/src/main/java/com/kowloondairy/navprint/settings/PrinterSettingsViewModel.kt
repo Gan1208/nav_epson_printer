@@ -7,6 +7,9 @@ import com.kowloondairy.navprint.print.PrintProblem
 import com.kowloondairy.navprint.print.PrinterAddressStore
 import com.kowloondairy.navprint.print.PrinterFinder
 import com.kowloondairy.navprint.print.ReceiptPrinter
+import com.kowloondairy.navprint.print.SavedPrinter
+import com.kowloondairy.navprint.print.SavedPrinterStore
+import com.kowloondairy.navprint.print.withSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +38,11 @@ data class PrinterSettingsState(
     /** As typed, not yet saved. */
     val address: String,
     val test: TestPrintStatus = TestPrintStatus.Idle,
+    /** The saved IP, which everything prints to. */
+    val inUse: String = address,
+    val saved: List<SavedPrinter> = emptyList(),
+    /** The 已儲存打印機 whose 打印機名稱 is being typed, if any. */
+    val naming: SavedPrinter? = null,
 ) {
     /** Searching or printing: the IP and buttons are locked until it finishes. */
     val busy: Boolean
@@ -45,17 +53,47 @@ class PrinterSettingsViewModel(
     private val store: PrinterAddressStore,
     private val printer: ReceiptPrinter,
     private val finder: PrinterFinder,
+    private val savedPrinters: SavedPrinterStore,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PrinterSettingsState(store.address))
+    private val _state = MutableStateFlow(PrinterSettingsState(store.address, saved = savedPrinters.printers))
     val state: StateFlow<PrinterSettingsState> = _state.asStateFlow()
 
-    fun editAddress(address: String) = _state.update { PrinterSettingsState(address) }
+    /** What the last search found, kept for the 已儲存打印機 once the test print goes through. */
+    private var foundModel: String? = null
+
+    fun editAddress(address: String) = _state.update { it.copy(address = address, test = TestPrintStatus.Idle) }
 
     fun save() {
         val address = _state.value.address.trim()
         store.address = address
-        _state.update { it.copy(address = address) }
+        _state.update { it.copy(address = address, inUse = address) }
+    }
+
+    /** A tap on a 已儲存打印機: it is in use from now on. */
+    fun choose(printer: SavedPrinter) {
+        if (_state.value.busy) return
+        editAddress(printer.address)
+        save()
+    }
+
+    /** The ✎ on a 已儲存打印機. */
+    fun startNaming(printer: SavedPrinter) = _state.update { it.copy(naming = printer) }
+
+    fun cancelNaming() = _state.update { it.copy(naming = null) }
+
+    fun name(printer: SavedPrinter, name: String) {
+        updateSaved { saved -> saved.map { if (it.address == printer.address) it.copy(name = name.trim()) else it } }
+        cancelNaming()
+    }
+
+    /** After the person said 刪除. The IP in use stays in use. */
+    fun remove(printer: SavedPrinter) = updateSaved { saved -> saved.filter { it.address != printer.address } }
+
+    private fun updateSaved(change: (List<SavedPrinter>) -> List<SavedPrinter>) {
+        val saved = change(_state.value.saved)
+        savedPrinters.printers = saved
+        _state.update { it.copy(saved = saved) }
     }
 
     /** Saves what was typed, then looks for the printer there and asks before printing. */
@@ -77,6 +115,7 @@ class PrinterSettingsViewModel(
                 // A broken search is no worse than a silent one: still offer to print.
                 null
             }
+            foundModel = model
             val question = when {
                 model == null -> "找不到此 IP 的打印機型號。仍要打印測試頁？"
                 isExpectedModel(model) -> "找到打印機 $model（$address）。確定打印測試頁？"
@@ -99,6 +138,7 @@ class PrinterSettingsViewModel(
         viewModelScope.launch {
             val result = try {
                 printer.printTest()
+                rememberPrinter()
                 TestPrintStatus.Passed
             } catch (e: CancellationException) {
                 throw e
@@ -109,5 +149,13 @@ class PrinterSettingsViewModel(
             }
             _state.update { it.copy(test = result) }
         }
+    }
+
+    /** A new 已儲存打印機 is asked for its 打印機名稱; one seen before keeps its own. */
+    private fun rememberPrinter() {
+        val address = _state.value.inUse
+        val isNew = _state.value.saved.none { it.address == address }
+        updateSaved { it.withSuccess(SavedPrinter(address, foundModel)) }
+        if (isNew) _state.update { it.copy(naming = it.saved.first()) }
     }
 }

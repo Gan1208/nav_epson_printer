@@ -2,7 +2,7 @@ package com.kowloondairy.navprint.print
 
 import android.content.Context
 
-/** Where the one shared printer is on the company wifi, e.g. `192.168.1.50`. Blank when not set. */
+/** Where the printer in use is on the company wifi, e.g. `192.168.1.50`. Blank when not set. */
 interface PrinterAddressStore {
     var address: String
 }
