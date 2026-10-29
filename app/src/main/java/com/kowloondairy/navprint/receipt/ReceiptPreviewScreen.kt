@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,41 +13,31 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.unit.dp
 import com.kowloondairy.navprint.landing.DeliveryNote
-
-private val allPages = ReceiptPage.entries.toList()
+import com.kowloondairy.navprint.print.SavedPrinter
 
 /**
  * Every page of every 收據 in [deliveryNotes], one under the other.
- * More than one 送貨單 is a 多張打印: they print one at a time, with no single-page printing.
+ * 打印 prints them all, after [PrintDialog] asks which printer.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,56 +45,23 @@ fun ReceiptPreviewScreen(
     deliveryNotes: List<DeliveryNote>,
     state: ReceiptPreviewState,
     printStatus: PrintStatus,
-    /** e.g. 「打印機：倉庫」, so staff see where it will print. */
-    printerLabel: String,
+    printers: List<SavedPrinter>,
+    /** The IP printed to last time, which the dialog picks first. */
+    lastUsed: String,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onPrint: (jobs: List<PrintJob>, render: RenderPage) -> Unit,
+    onPrint: (address: String, render: RenderPage) -> Unit,
     onRetryPrint: (render: RenderPage) -> Unit,
     onStop: () -> Unit,
     onDismissPrintStatus: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val several = deliveryNotes.size > 1
-    val snackbar = remember { SnackbarHostState() }
-    val printing = printStatus is PrintStatus.Printing
+    val pages = rememberPageLayers(deliveryNotes)
+    var choosing by remember { mutableStateOf(false) }
 
-    // One recording per page of each 送貨單, filled by PrintPages and read when printing.
-    val layers = deliveryNotes.associate { note ->
-        key(note.number) { note.number to ReceiptPage.entries.associateWith { rememberGraphicsLayer() } }
-    }
-    val render: RenderPage = { note, page -> layers.getValue(note.number).getValue(page).printImage() }
-    val print = { jobs: List<PrintJob> -> onPrint(jobs, render) }
-    val printAll = { print(deliveryNotes.map { PrintJob(it, allPages) }) }
-
-    // Leaving while printing asks first, and waits for the 送貨單 printing now to finish.
-    var askingToLeave by remember { mutableStateOf(false) }
-    var leaving by remember { mutableStateOf(false) }
-    val back = {
-        if (printing) {
-            askingToLeave = true
-        } else {
-            onBack()
-        }
-    }
-    BackHandler(onBack = back)
-    LaunchedEffect(leaving, printing) {
-        if (!printing) askingToLeave = false
-        if (leaving && !printing) onBack()
-    }
-
-    LaunchedEffect(printStatus) {
-        when (printStatus) {
-            PrintStatus.Printed -> {
-                onDismissPrintStatus()
-                snackbar.showSnackbar("打印完成")
-            }
-            is PrintStatus.Stopped -> {
-                onDismissPrintStatus()
-                snackbar.showSnackbar("已停止，已印 ${printStatus.done}/${printStatus.total}")
-            }
-            else -> Unit
-        }
-    }
+    // While printing the dialog is up and keeps back for itself.
+    BackHandler(onBack = onBack)
 
     Scaffold(
         topBar = {
@@ -117,7 +73,7 @@ fun ReceiptPreviewScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = back) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -128,42 +84,13 @@ fun ReceiptPreviewScreen(
                 ),
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            val canPrint = state is ReceiptPreviewState.Loaded && !printing
-            Text(
-                printerLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 16.dp),
-            ) {
-                Button(
-                    onClick = printAll,
-                    enabled = canPrint,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(
-                        when {
-                            printStatus is PrintStatus.Printing && several ->
-                                "打印中 ${minOf(printStatus.done + 1, printStatus.total)}/${printStatus.total}…"
-                            printing -> "打印中…"
-                            several -> "打印（${deliveryNotes.size} 張送貨單）"
-                            else -> "打印（三頁）"
-                        }
-                    )
-                }
-                if (printStatus is PrintStatus.Printing && several) {
-                    OutlinedButton(onClick = onStop, enabled = !printStatus.stopping) {
-                        Text(if (printStatus.stopping) "停止中…" else "停止")
-                    }
-                }
-            }
-            if (printing) LinearProgressIndicator(Modifier.fillMaxWidth())
+            Button(
+                onClick = { choosing = true },
+                enabled = state is ReceiptPreviewState.Loaded,
+                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            ) { Text(if (several) "打印（${deliveryNotes.size} 張送貨單）" else "打印（三頁）") }
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -180,76 +107,37 @@ fun ReceiptPreviewScreen(
                         Button(onClick = onRetry) { Text("重試") }
                     }
                     is ReceiptPreviewState.Loaded -> {
-                        state.receipts.forEach { PrintPages(it, layers.getValue(it.deliveryNote.number)) }
-                        ReceiptList(
-                            receipts = state.receipts,
-                            several = several,
-                            canPrint = canPrint,
-                            onPrintPage = { note, page -> print(listOf(PrintJob(note, listOf(page)))) },
-                        )
+                        pages.Record(state.receipts)
+                        ReceiptList(receipts = state.receipts, several = several)
                     }
                 }
             }
         }
     }
 
-    if (printStatus is PrintStatus.Failed) {
-        val failed = printStatus.remaining.first()
-        AlertDialog(
-            onDismissRequest = onDismissPrintStatus,
-            title = {
-                Text(
-                    if (printStatus.total > 1) {
-                        "第 ${printStatus.done + 1}/${printStatus.total} 張（${failed.deliveryNote.displayNumber}）打印失敗"
-                    } else {
-                        "打印失敗"
-                    }
-                )
+    if (choosing || printStatus != PrintStatus.Idle) {
+        PrintDialog(
+            printers = printers,
+            lastUsed = lastUsed,
+            total = deliveryNotes.size,
+            receipts = state,
+            printStatus = printStatus,
+            onPrint = { address -> onPrint(address, pages.render) },
+            onRetryLoad = onRetry,
+            onRetryPrint = { onRetryPrint(pages.render) },
+            onStop = onStop,
+            onClose = {
+                choosing = false
+                onDismissPrintStatus()
             },
-            text = { Text(printStatus.problem.message) },
-            confirmButton = {
-                TextButton(onClick = { onRetryPrint(render) }) {
-                    Text(
-                        when {
-                            printStatus.total > 1 -> "重試"
-                            failed.pages.size > 1 -> "重印全部三頁"
-                            else -> "重印此頁"
-                        }
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissPrintStatus) { Text("取消") }
-            },
-        )
-    }
-
-    if (askingToLeave && printing) {
-        AlertDialog(
-            onDismissRequest = { askingToLeave = false },
-            title = { Text("打印中，要停止嗎？") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onStop()
-                    leaving = true
-                    askingToLeave = false
-                }) { Text("停止並返回") }
-            },
-            dismissButton = {
-                TextButton(onClick = { askingToLeave = false }) { Text("繼續打印") }
-            },
+            onSettings = onSettings,
         )
     }
 }
 
 /** Each 收據's pages in print order; for 多張打印 each 送貨單 gets a heading. */
 @Composable
-private fun ReceiptList(
-    receipts: List<Receipt>,
-    several: Boolean,
-    canPrint: Boolean,
-    onPrintPage: (DeliveryNote, ReceiptPage) -> Unit,
-) {
+private fun ReceiptList(receipts: List<Receipt>, several: Boolean) {
     LazyColumn(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -270,18 +158,11 @@ private fun ReceiptList(
             ReceiptPage.entries.forEach { page ->
                 item(key = note.number to page) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.width(PaperWidth),
-                        ) {
-                            Text(page.label, style = MaterialTheme.typography.labelLarge)
-                            if (!several) {
-                                TextButton(onClick = { onPrintPage(note, page) }, enabled = canPrint) {
-                                    Text("只打印此頁")
-                                }
-                            }
-                        }
+                        Text(
+                            page.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.width(PaperWidth).padding(vertical = 8.dp),
+                        )
                         Surface(shadowElevation = 2.dp) {
                             ReceiptPaper(receipt, page)
                         }

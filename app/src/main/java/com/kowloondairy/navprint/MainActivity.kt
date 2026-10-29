@@ -16,21 +16,24 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.kowloondairy.navprint.alert.UnprintedAlertSchedule
 import com.kowloondairy.navprint.alert.UnprintedAlertSection
+import com.kowloondairy.navprint.landing.Category
 import com.kowloondairy.navprint.landing.DeliveryNote
 import com.kowloondairy.navprint.landing.LandingScreen
 import com.kowloondairy.navprint.landing.LandingViewModel
+import com.kowloondairy.navprint.landing.SharedPrefsDefaultCategoryStore
 import com.kowloondairy.navprint.landing.SqlDeliveryNoteSource
 import com.kowloondairy.navprint.print.EpsonPrinterFinder
 import com.kowloondairy.navprint.print.EpsonReceiptPrinter
 import com.kowloondairy.navprint.print.SharedPrefsPrinterAddressStore
 import com.kowloondairy.navprint.print.SharedPrefsSavedPrinterStore
-import com.kowloondairy.navprint.print.categoryInUse
-import com.kowloondairy.navprint.print.printerInUse
-import com.kowloondairy.navprint.print.printerName
+import com.kowloondairy.navprint.receipt.PrintDialog
+import com.kowloondairy.navprint.receipt.PrintStatus
 import com.kowloondairy.navprint.receipt.ReceiptPreviewScreen
+import com.kowloondairy.navprint.receipt.ReceiptPreviewState
 import com.kowloondairy.navprint.receipt.ReceiptPreviewViewModel
 import com.kowloondairy.navprint.receipt.SqlPrintedRecord
 import com.kowloondairy.navprint.receipt.SqlReceiptSource
+import com.kowloondairy.navprint.receipt.rememberPageLayers
 import com.kowloondairy.navprint.settings.PrinterSettingsScreen
 import com.kowloondairy.navprint.settings.PrinterSettingsViewModel
 import com.kowloondairy.navprint.ui.NavPrintTheme
@@ -51,8 +54,7 @@ class MainActivity : ComponentActivity() {
                             LandingViewModel(
                                 LocalDate.now(),
                                 SqlDeliveryNoteSource(navSqlSettings),
-                                printerName(printerAddresses.address, savedPrinters.printers),
-                                categoryInUse(printerAddresses.address, savedPrinters.printers),
+                                defaultCategory.category,
                             )
                         }
                     }
@@ -60,38 +62,63 @@ class MainActivity : ComponentActivity() {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 LaunchedEffect(Unit) { if (showUnprinted) viewModel.showUnprinted() }
                 var previewing by remember { mutableStateOf<List<DeliveryNote>?>(null) }
+                // Each 打印 from the main page counts up, so it gets its own 收據, loaded fresh.
+                var printing by remember { mutableStateOf<Pair<Int, List<DeliveryNote>>?>(null) }
+                var printRuns by remember { mutableStateOf(0) }
                 var inSettings by remember { mutableStateOf(false) }
+                // A 本裝置預設類別 changed in 設定 is used straight away; one left alone keeps the 類別 picked here.
+                var defaultBefore by remember { mutableStateOf<Category?>(null) }
+                val openSettings = {
+                    defaultBefore = defaultCategory.category
+                    inSettings = true
+                }
+                val leaveSettings = {
+                    inSettings = false
+                    val now = defaultCategory.category
+                    if (now != defaultBefore) viewModel.chooseCategory(now)
+                }
 
                 val notes = previewing
                 when {
                     inSettings -> {
-                        BackHandler { inSettings = false }
-                        PrinterSettings(onBack = { inSettings = false })
+                        BackHandler(onBack = leaveSettings)
+                        PrinterSettings(onBack = leaveSettings)
                     }
-                    // The preview handles back itself, to ask first while printing.
-                    notes != null -> ReceiptPreview(notes, onBack = {
-                        viewModel.startOver()
-                        previewing = null
-                    })
+                    notes != null -> ReceiptPreview(
+                        notes,
+                        onBack = {
+                            viewModel.reload()
+                            previewing = null
+                        },
+                        onSettings = openSettings,
+                    )
                     else -> {
-                        // Each time the page shows, so a printer or 類別 changed in 設定 is picked up.
-                        LaunchedEffect(Unit) {
-                            val saved = savedPrinters.printers
-                            viewModel.usePrinter(
-                                printerName(printerAddresses.address, saved),
-                                categoryInUse(printerAddresses.address, saved),
-                            )
-                        }
                         LandingScreen(
                             state = state,
                             onDeliveryDateChosen = viewModel::chooseDeliveryDate,
+                            onCategoryChosen = viewModel::chooseCategory,
                             onQuery = viewModel::query,
                             onToggle = viewModel::toggle,
                             onToggleAll = viewModel::toggleAll,
                             onRetry = viewModel::retry,
-                            onPreview = { previewing = state.toPreview },
-                            onSettings = { inSettings = true },
+                            onPreview = { previewing = state.ticked },
+                            onPrint = { printing = ++printRuns to state.ticked },
+                            onSettings = openSettings,
                         )
+                        printing?.let { (run, ticked) ->
+                            PrintWithoutPreview(
+                                run,
+                                ticked,
+                                onClose = { printed ->
+                                    printing = null
+                                    if (printed) viewModel.reload()
+                                },
+                                onSettings = {
+                                    printing = null
+                                    openSettings()
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -99,30 +126,71 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun ReceiptPreview(notes: List<DeliveryNote>, onBack: () -> Unit) {
-        val viewModel: ReceiptPreviewViewModel = viewModel(
-            key = "receipt-${notes.joinToString(",") { it.number }}",
-            factory = viewModelFactory {
-                initializer {
-                    ReceiptPreviewViewModel(notes, SqlReceiptSource(navSqlSettings), printer, printedRecord)
-                }
-            },
-        )
+    private fun receiptViewModel(key: String, notes: List<DeliveryNote>): ReceiptPreviewViewModel = viewModel(
+        key = key,
+        factory = viewModelFactory {
+            initializer {
+                ReceiptPreviewViewModel(notes, SqlReceiptSource(navSqlSettings), printer, printedRecord, printerAddresses)
+            }
+        },
+    )
+
+    @Composable
+    private fun ReceiptPreview(notes: List<DeliveryNote>, onBack: () -> Unit, onSettings: () -> Unit) {
+        val viewModel = receiptViewModel("receipt-${notes.joinToString(",") { it.number }}", notes)
         val state by viewModel.state.collectAsStateWithLifecycle()
         val printStatus by viewModel.printStatus.collectAsStateWithLifecycle()
-        // Read each time the preview opens, so a printer chosen in 設定 shows up.
-        val printerLabel = remember { printerInUse(printerAddresses.address, savedPrinters.printers) }
+        // Read each time the preview opens, so a printer saved in 設定 shows up.
+        val printers = remember { savedPrinters.printers }
         ReceiptPreviewScreen(
             notes,
             state,
             printStatus,
-            printerLabel = printerLabel,
+            printers = printers,
+            lastUsed = printerAddresses.address,
             onBack = onBack,
             onRetry = viewModel::retry,
             onPrint = viewModel::print,
             onRetryPrint = viewModel::retryPrint,
             onStop = viewModel::stop,
             onDismissPrintStatus = viewModel::dismissPrintStatus,
+            onSettings = onSettings,
+        )
+    }
+
+    /**
+     * 打印 on the main page: the print dialog over the list, with the pages drawn out of sight.
+     * [onClose] says whether anything was sent to the printer, so the list can show the new ✓.
+     */
+    @Composable
+    private fun PrintWithoutPreview(
+        run: Int,
+        notes: List<DeliveryNote>,
+        onClose: (printed: Boolean) -> Unit,
+        onSettings: () -> Unit,
+    ) {
+        val viewModel = receiptViewModel("print-$run", notes)
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val printStatus by viewModel.printStatus.collectAsStateWithLifecycle()
+        val printers = remember { savedPrinters.printers }
+        val pages = rememberPageLayers(notes)
+        (state as? ReceiptPreviewState.Loaded)?.let { pages.Record(it.receipts) }
+        PrintDialog(
+            printers = printers,
+            lastUsed = printerAddresses.address,
+            total = notes.size,
+            receipts = state,
+            printStatus = printStatus,
+            onPrint = { address -> viewModel.print(address, pages.render) },
+            onRetryLoad = viewModel::retry,
+            onRetryPrint = { viewModel.retryPrint(pages.render) },
+            onStop = viewModel::stop,
+            onClose = {
+                val printed = printStatus != PrintStatus.Idle
+                viewModel.dismissPrintStatus()
+                onClose(printed)
+            },
+            onSettings = onSettings,
         )
     }
 
@@ -130,7 +198,9 @@ class MainActivity : ComponentActivity() {
     private fun PrinterSettings(onBack: () -> Unit) {
         val viewModel: PrinterSettingsViewModel = viewModel(
             factory = viewModelFactory {
-                initializer { PrinterSettingsViewModel(printerAddresses, printer, printerFinder, savedPrinters) }
+                initializer {
+                    PrinterSettingsViewModel(printerAddresses, printer, printerFinder, savedPrinters, defaultCategory)
+                }
             },
         )
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -147,6 +217,7 @@ class MainActivity : ComponentActivity() {
             onEdit = viewModel::edit,
             onCancelEditing = viewModel::cancelEditing,
             onRemove = viewModel::remove,
+            onDefaultCategoryChosen = viewModel::chooseDefaultCategory,
             moreSettings = { UnprintedAlertSection() },
         )
     }
@@ -155,6 +226,7 @@ class MainActivity : ComponentActivity() {
     private val printer by lazy { EpsonReceiptPrinter(applicationContext, printerAddresses) }
     private val printerFinder by lazy { EpsonPrinterFinder(applicationContext) }
     private val savedPrinters by lazy { SharedPrefsSavedPrinterStore(applicationContext) }
+    private val defaultCategory by lazy { SharedPrefsDefaultCategoryStore(applicationContext) }
     companion object {
         /** Set by the 未打印提醒 notification: open on tomorrow's list with the 未打印 ones ticked. */
         const val EXTRA_SHOW_UNPRINTED = "show_unprinted"

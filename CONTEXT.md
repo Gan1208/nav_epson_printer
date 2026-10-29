@@ -29,19 +29,23 @@ The kind of goods: 牛奶 (milk) or 雪糕 (ice cream). 全部 means no filter, 
 Decided by the location the goods ship from: locations 92 and 93 are 牛奶, location T1 is 雪糕.
 A 送貨單 never mixes 牛奶 and 雪糕, because they go out on different trucks.
 On printed pages the location is shown as Route.
-Staff do not pick it when searching: the phone uses the 類別 of the 已儲存打印機 in use. A printer with no 類別 set counts as 全部.
+Staff pick it when searching; it starts at the phone's 本裝置預設類別 each time the app opens.
 _Avoid_: Type, product type
+
+**本裝置預設類別 (Device default category)**:
+The 類別 a phone starts on when the app opens: 全部, 牛奶 or 雪糕, set in 設定. Staff can change the 類別 for a search without changing this. Starts as 全部.
+_Avoid_: Printer category
 
 **收據 (Receipt set)**:
 What gets printed for one 送貨單: three pages: 回單, 執貨單 and 客戶單.
 _Avoid_: Invoice
 
 **多張打印 (Multi print)**:
-Printing the 收據 of two or more 送貨單 picked from the list for the chosen 送貨日 and the 類別 of the printer in use, in 送貨單號 order. One 送貨單's three pages all come out before the next 送貨單 starts. Picking every 送貨單 in the list prints the whole day.
+Printing the 收據 of two or more 送貨單 picked from the list for the chosen 送貨日 and 類別, in 送貨單號 order. One 送貨單's three pages all come out before the next 送貨單 starts. Picking every 送貨單 in the list prints the whole day.
 _Avoid_: Batch print, 全日打印 (it no longer has to be the whole day)
 
 **已儲存打印機 (Saved printer)**:
-A printer that has printed a test page from this phone, kept so it can be picked again. Each has an IP and a 類別 (全部, 牛奶 or 雪糕), and may have a model and a 打印機名稱. Only one is in use at a time; everything prints there.
+A printer that has printed a test page from this phone, kept so it can be picked again. Each has an IP, and may have a model and a 打印機名稱. Staff pick one each time they print; the one picked last time is picked for them.
 _Avoid_: Printer list, paired printer
 
 **打印機名稱 (Printer name)**:
@@ -53,7 +57,7 @@ A 送貨單 whose whole 收據 (all three pages) has come out of a printer. Pres
 _Avoid_: Sent, done
 
 **未打印提醒 (Unprinted alert)**:
-A loud alert, between 4 and 6 in the afternoon, on phones that turned it on, when a 送貨單 for tomorrow's 送貨日, of the 類別 of the printer in use, is not yet 已打印. It is there because 送貨單 can appear after the 4 o'clock print.
+A loud alert, between 4 and 6 in the afternoon, on phones that turned it on, when a 送貨單 for tomorrow's 送貨日, of any 類別, is not yet 已打印. It is there because 送貨單 can appear after the 4 o'clock print.
 _Avoid_: New order alert
 
 **回單 (Return Receipt)**:

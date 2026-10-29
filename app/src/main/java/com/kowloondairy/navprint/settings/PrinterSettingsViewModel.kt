@@ -3,6 +3,7 @@ package com.kowloondairy.navprint.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kowloondairy.navprint.landing.Category
+import com.kowloondairy.navprint.landing.DefaultCategoryStore
 import com.kowloondairy.navprint.print.PrintFailure
 import com.kowloondairy.navprint.print.PrintProblem
 import com.kowloondairy.navprint.print.PrinterAddressStore
@@ -39,11 +40,13 @@ data class PrinterSettingsState(
     /** As typed, not yet saved. */
     val address: String,
     val test: TestPrintStatus = TestPrintStatus.Idle,
-    /** The saved IP, which everything prints to. */
+    /** The saved IP: the one the test print goes to, and the one the print dialog picks first. */
     val inUse: String = address,
     val saved: List<SavedPrinter> = emptyList(),
-    /** The 已儲存打印機 whose 打印機名稱 and 類別 are being changed, if any. */
+    /** The 已儲存打印機 whose 打印機名稱 is being changed, if any. */
     val editing: SavedPrinter? = null,
+    /** The 本裝置預設類別; null means 全部. */
+    val defaultCategory: Category? = null,
 ) {
     /** Searching or printing: the IP and buttons are locked until it finishes. */
     val busy: Boolean
@@ -55,9 +58,12 @@ class PrinterSettingsViewModel(
     private val printer: ReceiptPrinter,
     private val finder: PrinterFinder,
     private val savedPrinters: SavedPrinterStore,
+    private val defaultCategory: DefaultCategoryStore,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PrinterSettingsState(store.address, saved = savedPrinters.printers))
+    private val _state = MutableStateFlow(
+        PrinterSettingsState(store.address, saved = savedPrinters.printers, defaultCategory = defaultCategory.category),
+    )
     val state: StateFlow<PrinterSettingsState> = _state.asStateFlow()
 
     /** What the last search found, kept for the 已儲存打印機 once the test print goes through. */
@@ -71,7 +77,7 @@ class PrinterSettingsViewModel(
         _state.update { it.copy(address = address, inUse = address) }
     }
 
-    /** A tap on a 已儲存打印機: it is in use from now on. */
+    /** A tap on a 已儲存打印機: its IP goes in the box, ready for a 測試打印. */
     fun choose(printer: SavedPrinter) {
         if (_state.value.busy) return
         editAddress(printer.address)
@@ -83,15 +89,18 @@ class PrinterSettingsViewModel(
 
     fun cancelEditing() = _state.update { it.copy(editing = null) }
 
-    /** [category] null means 全部. */
-    fun edit(printer: SavedPrinter, name: String, category: Category?) {
-        updateSaved { saved ->
-            saved.map { if (it.address == printer.address) it.copy(name = name.trim(), category = category) else it }
-        }
+    fun edit(printer: SavedPrinter, name: String) {
+        updateSaved { saved -> saved.map { if (it.address == printer.address) it.copy(name = name.trim()) else it } }
         cancelEditing()
     }
 
-    /** After the person said 刪除. The IP in use stays in use. */
+    /** Kept at once; there is no 儲存 to press. [category] null means 全部. */
+    fun chooseDefaultCategory(category: Category?) {
+        defaultCategory.category = category
+        _state.update { it.copy(defaultCategory = category) }
+    }
+
+    /** After the person said 刪除. The IP in the box stays. */
     fun remove(printer: SavedPrinter) = updateSaved { saved -> saved.filter { it.address != printer.address } }
 
     private fun updateSaved(change: (List<SavedPrinter>) -> List<SavedPrinter>) {
@@ -155,7 +164,7 @@ class PrinterSettingsViewModel(
         }
     }
 
-    /** A new 已儲存打印機 is asked for its 打印機名稱 and 類別; one seen before keeps its own. */
+    /** A new 已儲存打印機 is asked for its 打印機名稱; one seen before keeps its own. */
     private fun rememberPrinter() {
         val address = _state.value.inUse
         val isNew = _state.value.saved.none { it.address == address }

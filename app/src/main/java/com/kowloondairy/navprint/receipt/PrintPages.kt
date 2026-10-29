@@ -3,14 +3,17 @@ package com.kowloondairy.navprint.receipt
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import com.kowloondairy.navprint.landing.DeliveryNote
 
 /** At this density [PaperWidth] is exactly the 576 dots of one print line. */
 private val printDensity = Density(2f)
@@ -48,3 +51,21 @@ suspend fun GraphicsLayer.printImage(): Bitmap {
     // Pixels of a hardware bitmap cannot be read, and the printer needs to read them.
     return if (image.config == Bitmap.Config.HARDWARE) image.copy(Bitmap.Config.ARGB_8888, false) else image
 }
+
+/** One layer per page of each 送貨單: [Record] fills them, [render] reads them when printing. */
+class PageLayers(private val layers: Map<String, Map<ReceiptPage, GraphicsLayer>>) {
+    val render: RenderPage = { note, page -> layers.getValue(note.number).getValue(page).printImage() }
+
+    /** Draws every page of [receipts] out of sight, so [render] has something to read. */
+    @Composable
+    fun Record(receipts: List<Receipt>) {
+        receipts.forEach { PrintPages(it, layers.getValue(it.deliveryNote.number)) }
+    }
+}
+
+@Composable
+fun rememberPageLayers(deliveryNotes: List<DeliveryNote>): PageLayers = PageLayers(
+    deliveryNotes.associate { note ->
+        key(note.number) { note.number to ReceiptPage.entries.associateWith { rememberGraphicsLayer() } }
+    },
+)

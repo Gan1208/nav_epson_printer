@@ -5,6 +5,7 @@ import com.kowloondairy.navprint.landing.Category
 import com.kowloondairy.navprint.landing.DeliveryNote
 import com.kowloondairy.navprint.print.PrintFailure
 import com.kowloondairy.navprint.print.PrintProblem
+import com.kowloondairy.navprint.print.PrinterAddressStore
 import com.kowloondairy.navprint.print.ReceiptPrinter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +32,9 @@ class ReceiptPreviewViewModelTest {
     private fun receiptFor(note: DeliveryNote) =
         Receipt(note, Customer("Patrick Lau", "", "", emptyList()), listOf("92"), emptyList(), null)
 
-    private fun job(note: DeliveryNote, pages: List<ReceiptPage> = allPages) = PrintJob(note, pages)
+    private class FakeAddress : PrinterAddressStore {
+        override var address = ""
+    }
 
     private inner class FakeSource : ReceiptSource {
         val asked = mutableListOf<DeliveryNote>()
@@ -77,6 +80,7 @@ class ReceiptPreviewViewModelTest {
     private val source = FakeSource()
     private val printer = FakePrinter()
     private val printedRecord = FakePrintedRecord()
+    private val address = FakeAddress()
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -85,28 +89,18 @@ class ReceiptPreviewViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private fun viewModel(vararg notes: DeliveryNote = arrayOf(note)) =
-        ReceiptPreviewViewModel(notes.toList(), source, printer, printedRecord)
+        ReceiptPreviewViewModel(notes.toList(), source, printer, printedRecord, address)
 
     @Test
     fun `records each 送貨單 as printed once its three pages are out`() {
         printer.failOnceAt = 1
         val viewModel = viewModel(note, note2, note3)
 
-        viewModel.print(listOf(job(note), job(note2), job(note3)), render)
+        viewModel.print("192.168.1.50", render)
         assertEquals(listOf(note.number), printedRecord.marked)
 
         viewModel.retryPrint(render)
         assertEquals(listOf(note.number, note2.number, note3.number), printedRecord.marked)
-    }
-
-    @Test
-    fun `one page alone does not make a 送貨單 printed`() {
-        val viewModel = viewModel()
-
-        viewModel.print(listOf(job(note, listOf(ReceiptPage.PACKING))), render)
-
-        assertEquals(PrintStatus.Printed, viewModel.printStatus.value)
-        assertEquals(emptyList<String>(), printedRecord.marked)
     }
 
     @Test
@@ -149,11 +143,12 @@ class ReceiptPreviewViewModelTest {
     }
 
     @Test
-    fun `prints the pages asked for and says when done`() {
+    fun `prints all three pages to the printer picked, and says when done`() {
         val viewModel = viewModel()
 
-        viewModel.print(listOf(job(note)), render)
+        viewModel.print("192.168.1.50", render)
 
+        assertEquals("192.168.1.50", address.address)
         assertEquals(listOf(allPages), printer.printed)
         assertEquals(PrintStatus.Printed, viewModel.printStatus.value)
     }
@@ -163,11 +158,12 @@ class ReceiptPreviewViewModelTest {
         val viewModel = viewModel()
         printer.hold = CompletableDeferred()
 
-        viewModel.print(listOf(job(note)), render)
-        viewModel.print(listOf(job(note, listOf(ReceiptPage.PACKING))), render)
+        viewModel.print("192.168.1.50", render)
+        viewModel.print("192.168.1.51", render)
 
         assertEquals(PrintStatus.Printing(0, 1), viewModel.printStatus.value)
         assertEquals(listOf(allPages), printer.printed)
+        assertEquals("192.168.1.50", address.address)
 
         printer.hold!!.complete(Unit)
         assertEquals(PrintStatus.Printed, viewModel.printStatus.value)
@@ -178,7 +174,7 @@ class ReceiptPreviewViewModelTest {
         val viewModel = viewModel(note, note2, note3)
         printer.hold = CompletableDeferred()
 
-        viewModel.print(listOf(job(note), job(note2), job(note3)), render)
+        viewModel.print("192.168.1.50", render)
         assertEquals(PrintStatus.Printing(0, 3), viewModel.printStatus.value)
         assertEquals(listOf(allPages), printer.printed)
 
@@ -188,16 +184,14 @@ class ReceiptPreviewViewModelTest {
     }
 
     @Test
-    fun `a failure says why and keeps the pages for printing again`() {
+    fun `a failure says why and keeps the 送貨單 for printing again`() {
         val viewModel = viewModel()
         printer.failWith = PrintFailure(PrintProblem.NO_PAPER)
 
-        viewModel.print(listOf(job(note, listOf(ReceiptPage.CUSTOMER))), render)
+        viewModel.print("192.168.1.50", render)
 
-        assertEquals(
-            PrintStatus.Failed(PrintProblem.NO_PAPER, listOf(job(note, listOf(ReceiptPage.CUSTOMER))), 0, 1),
-            viewModel.printStatus.value,
-        )
+        assertEquals(PrintStatus.Failed(PrintProblem.NO_PAPER, listOf(note), 0, 1), viewModel.printStatus.value)
+        assertEquals(emptyList<String>(), printedRecord.marked)
     }
 
     @Test
@@ -205,9 +199,9 @@ class ReceiptPreviewViewModelTest {
         val viewModel = viewModel()
         printer.failWith = IllegalStateException("boom")
 
-        viewModel.print(listOf(job(note)), render)
+        viewModel.print("192.168.1.50", render)
 
-        assertEquals(PrintStatus.Failed(PrintProblem.OTHER, listOf(job(note)), 0, 1), viewModel.printStatus.value)
+        assertEquals(PrintStatus.Failed(PrintProblem.OTHER, listOf(note), 0, 1), viewModel.printStatus.value)
     }
 
     @Test
@@ -215,10 +209,10 @@ class ReceiptPreviewViewModelTest {
         val viewModel = viewModel(note, note2, note3)
         printer.failOnceAt = 1
 
-        viewModel.print(listOf(job(note), job(note2), job(note3)), render)
+        viewModel.print("192.168.1.50", render)
 
         assertEquals(
-            PrintStatus.Failed(PrintProblem.NO_PAPER, listOf(job(note2), job(note3)), 1, 3),
+            PrintStatus.Failed(PrintProblem.NO_PAPER, listOf(note2, note3), 1, 3),
             viewModel.printStatus.value,
         )
     }
@@ -240,9 +234,9 @@ class ReceiptPreviewViewModelTest {
 
             override suspend fun printTest() = Unit
         }
-        val viewModel = ReceiptPreviewViewModel(listOf(note, note2, note3), source, drawingPrinter, printedRecord)
+        val viewModel = ReceiptPreviewViewModel(listOf(note, note2, note3), source, drawingPrinter, printedRecord, address)
 
-        viewModel.print(listOf(job(note), job(note2), job(note3)), recordingRender)
+        viewModel.print("192.168.1.50", recordingRender)
         viewModel.retryPrint(recordingRender)
 
         assertEquals(listOf(note, note2, note2, note3), drawn)
@@ -254,7 +248,7 @@ class ReceiptPreviewViewModelTest {
         val viewModel = viewModel(note, note2, note3)
         printer.hold = CompletableDeferred()
 
-        viewModel.print(listOf(job(note), job(note2), job(note3)), render)
+        viewModel.print("192.168.1.50", render)
         viewModel.stop()
         assertEquals(PrintStatus.Printing(0, 3, stopping = true), viewModel.printStatus.value)
 
@@ -266,7 +260,7 @@ class ReceiptPreviewViewModelTest {
     @Test
     fun `dismissing goes back to idle`() {
         val viewModel = viewModel()
-        viewModel.print(listOf(job(note)), render)
+        viewModel.print("192.168.1.50", render)
 
         viewModel.dismissPrintStatus()
 

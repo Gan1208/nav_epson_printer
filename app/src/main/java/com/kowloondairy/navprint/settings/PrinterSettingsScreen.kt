@@ -4,19 +4,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -67,9 +64,10 @@ fun PrinterSettingsScreen(
     onCancelTestPrint: () -> Unit,
     onChoose: (SavedPrinter) -> Unit,
     onStartEditing: (SavedPrinter) -> Unit,
-    onEdit: (SavedPrinter, String, Category?) -> Unit,
+    onEdit: (SavedPrinter, String) -> Unit,
     onCancelEditing: () -> Unit,
     onRemove: (SavedPrinter) -> Unit,
+    onDefaultCategoryChosen: (Category?) -> Unit,
     /** Settings that are not about printers, shown under them. */
     moreSettings: @Composable () -> Unit,
 ) {
@@ -144,6 +142,7 @@ fun PrinterSettingsScreen(
                 )
             }
             SavedPrinterList(state, onChoose, onStartEditing, onRemove)
+            DefaultCategoryField(state.defaultCategory, onDefaultCategoryChosen)
             moreSettings()
         }
     }
@@ -151,7 +150,7 @@ fun PrinterSettingsScreen(
     state.editing?.let { EditDialog(it, onEdit, onCancelEditing) }
 }
 
-/** The 已儲存打印機, newest first; a tap puts one in use. */
+/** The 已儲存打印機, newest first; a tap puts its IP in the box. */
 @Composable
 private fun SavedPrinterList(
     state: PrinterSettingsState,
@@ -178,17 +177,6 @@ private fun SavedPrinterList(
                     .clickable(enabled = !state.busy) { onChoose(printer) }
                     .padding(vertical = 12.dp),
             ) {
-                if (printer.address == state.inUse) {
-                    Icon(
-                        Icons.Filled.Check,
-                        contentDescription = "使用中",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(iconSize),
-                    )
-                } else {
-                    Spacer(Modifier.size(iconSize))
-                }
-                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         printer.label,
@@ -197,7 +185,7 @@ private fun SavedPrinterList(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        listOfNotNull(printer.address, printer.model, printer.category.choiceLabel).joinToString(" · "),
+                        listOfNotNull(printer.address, printer.model).joinToString(" · "),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -239,38 +227,48 @@ private fun SavedPrinterList(
 /** 全部 first, then each [Category]. */
 private val categoryChoices: List<Category?> = listOf(null) + Category.entries
 
-/** Asks for a 打印機名稱 and 類別; a blank name lets the IP stand in for it. */
+/** The 本裝置預設類別: the 類別 the main page starts on each time the app opens. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EditDialog(printer: SavedPrinter, onEdit: (SavedPrinter, String, Category?) -> Unit, onCancel: () -> Unit) {
+private fun DefaultCategoryField(category: Category?, onChosen: (Category?) -> Unit) {
+    Column {
+        Text(
+            "本裝置預設類別",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            categoryChoices.forEachIndexed { index, choice ->
+                SegmentedButton(
+                    selected = choice == category,
+                    onClick = { onChosen(choice) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = categoryChoices.size),
+                    modifier = Modifier.height(buttonHeight),
+                ) { Text(choice.choiceLabel, style = MaterialTheme.typography.titleMedium) }
+            }
+        }
+    }
+}
+
+/** Asks for a 打印機名稱; a blank name lets the IP stand in for it. */
+@Composable
+private fun EditDialog(printer: SavedPrinter, onEdit: (SavedPrinter, String) -> Unit, onCancel: () -> Unit) {
     var name by remember(printer.address) { mutableStateOf(printer.name) }
-    var category by remember(printer.address) { mutableStateOf(printer.category) }
     AlertDialog(
         onDismissRequest = onCancel,
         title = { Text("打印機設定") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("打印機名稱") },
-                    placeholder = { Text("例如 倉庫") },
-                    supportingText = { Text(printer.address) },
-                    singleLine = true,
-                )
-                // No 類別 heading: 全部 / 牛奶 / 雪糕 already say what this is.
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    categoryChoices.forEachIndexed { index, choice ->
-                        SegmentedButton(
-                            selected = choice == category,
-                            onClick = { category = choice },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = categoryChoices.size),
-                        ) { Text(choice.choiceLabel) }
-                    }
-                }
-            }
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("打印機名稱") },
+                placeholder = { Text("例如 倉庫") },
+                supportingText = { Text(printer.address) },
+                singleLine = true,
+            )
         },
-        confirmButton = { TextButton(onClick = { onEdit(printer, name, category) }) { Text("儲存") } },
+        confirmButton = { TextButton(onClick = { onEdit(printer, name) }) { Text("儲存") } },
         dismissButton = { TextButton(onClick = onCancel) { Text("略過") } },
     )
 }

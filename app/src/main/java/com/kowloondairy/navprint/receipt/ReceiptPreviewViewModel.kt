@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.kowloondairy.navprint.landing.DeliveryNote
 import com.kowloondairy.navprint.print.PrintFailure
 import com.kowloondairy.navprint.print.PrintProblem
+import com.kowloondairy.navprint.print.PrinterAddressStore
 import com.kowloondairy.navprint.print.ReceiptPrinter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,32 +21,34 @@ sealed interface ReceiptPreviewState {
     data object Failed : ReceiptPreviewState
 }
 
-/** Pages of one 送貨單's 收據, sent to the printer as one job. */
-data class PrintJob(val deliveryNote: DeliveryNote, val pages: List<ReceiptPage>)
+private val allPages = ReceiptPage.entries.toList()
 
 /** Draws one page of one 送貨單 as a 576-dot-wide image. */
 typealias RenderPage = suspend (DeliveryNote, ReceiptPage) -> Bitmap
 
-/** [done] and [total] count jobs, i.e. 送貨單. */
+/** [done] and [total] count 送貨單, each printed as one job of all three pages. */
 sealed interface PrintStatus {
     data object Idle : PrintStatus
     data class Printing(val done: Int, val total: Int, val stopping: Boolean = false) : PrintStatus
     data object Printed : PrintStatus
     data class Stopped(val done: Int, val total: Int) : PrintStatus
-    /** [remaining] starts with the job that failed; it is what to send again if the person retries. */
+    /** [remaining] starts with the 送貨單 that failed; it is what to send again if the person retries. */
     data class Failed(
         val problem: PrintProblem,
-        val remaining: List<PrintJob>,
+        val remaining: List<DeliveryNote>,
         val done: Int,
         val total: Int,
     ) : PrintStatus
 }
 
+/** The 收據 of [deliveryNotes], for the preview or for printing straight from the main page. */
 class ReceiptPreviewViewModel(
     val deliveryNotes: List<DeliveryNote>,
     private val receipts: ReceiptSource,
     private val printer: ReceiptPrinter,
     private val printedRecord: PrintedRecord,
+    /** Where [printer] sends to; also the printer the print dialog picks first next time. */
+    private val printerAddress: PrinterAddressStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ReceiptPreviewState>(ReceiptPreviewState.Loading)
@@ -63,18 +66,22 @@ class ReceiptPreviewViewModel(
     fun retry() = load()
 
     /**
-     * Sends [jobs] to the printer one at a time, so each 送貨單's pages come out together.
+     * Sends every 收據 to the printer at [address], one 送貨單 at a time, so each one's pages come out together.
      * A tap while already printing is ignored.
      */
-    fun print(jobs: List<PrintJob>, render: RenderPage) = run(jobs, done = 0, total = jobs.size, render)
+    fun print(address: String, render: RenderPage) {
+        if (_printStatus.value is PrintStatus.Printing) return
+        printerAddress.address = address
+        run(deliveryNotes, done = 0, total = deliveryNotes.size, render)
+    }
 
-    /** After a failure, sends the failed job again, then the ones after it. */
+    /** After a failure, sends the failed 送貨單 again, then the ones after it. */
     fun retryPrint(render: RenderPage) {
         val failed = _printStatus.value as? PrintStatus.Failed ?: return
         run(failed.remaining, failed.done, failed.total, render)
     }
 
-    /** Stops once the job printing now is done, so no 收據 comes out half printed. */
+    /** Stops once the 送貨單 printing now is done, so no 收據 comes out half printed. */
     fun stop() {
         val printing = _printStatus.value as? PrintStatus.Printing ?: return
         stopRequested = true
@@ -85,19 +92,19 @@ class ReceiptPreviewViewModel(
         if (_printStatus.value !is PrintStatus.Printing) _printStatus.value = PrintStatus.Idle
     }
 
-    private fun run(jobs: List<PrintJob>, done: Int, total: Int, render: RenderPage) {
+    private fun run(notes: List<DeliveryNote>, done: Int, total: Int, render: RenderPage) {
         if (_printStatus.value is PrintStatus.Printing) return
         stopRequested = false
         _printStatus.value = PrintStatus.Printing(done, total)
         viewModelScope.launch {
-            jobs.forEachIndexed { i, job ->
+            notes.forEachIndexed { i, note ->
                 val printed = done + i
                 if (stopRequested) {
                     _printStatus.value = PrintStatus.Stopped(printed, total)
                     return@launch
                 }
                 val problem = try {
-                    printer.print(job.pages) { page -> render(job.deliveryNote, page) }
+                    printer.print(allPages) { page -> render(note, page) }
                     null
                 } catch (e: CancellationException) {
                     throw e
@@ -107,21 +114,20 @@ class ReceiptPreviewViewModel(
                     PrintProblem.OTHER
                 }
                 if (problem != null) {
-                    _printStatus.value = PrintStatus.Failed(problem, jobs.drop(i), printed, total)
+                    _printStatus.value = PrintStatus.Failed(problem, notes.drop(i), printed, total)
                     return@launch
                 }
-                recordIfWhole(job)
+                record(note)
                 _printStatus.value = PrintStatus.Printing(printed + 1, total, stopRequested)
             }
             _printStatus.value = PrintStatus.Printed
         }
     }
 
-    /** Only all three pages make a 送貨單 已打印; recording runs beside printing so it never holds the next one up. */
-    private fun recordIfWhole(job: PrintJob) {
-        if (!job.pages.containsAll(ReceiptPage.entries)) return
+    /** All three pages are out, so it is 已打印; recording runs beside printing so it never holds the next one up. */
+    private fun record(note: DeliveryNote) {
         val receipt = (_state.value as? ReceiptPreviewState.Loaded)?.receipts
-            ?.firstOrNull { it.deliveryNote.number == job.deliveryNote.number } ?: return
+            ?.firstOrNull { it.deliveryNote.number == note.number } ?: return
         viewModelScope.launch { printedRecord.markPrinted(receipt) }
     }
 

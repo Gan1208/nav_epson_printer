@@ -2,6 +2,7 @@ package com.kowloondairy.navprint.settings
 
 import android.graphics.Bitmap
 import com.kowloondairy.navprint.landing.Category
+import com.kowloondairy.navprint.landing.DefaultCategoryStore
 import com.kowloondairy.navprint.print.PrintFailure
 import com.kowloondairy.navprint.print.PrintProblem
 import com.kowloondairy.navprint.print.PrinterAddressStore
@@ -63,7 +64,11 @@ class PrinterSettingsViewModelTest {
     private val finder = FakeFinder()
     private val saved = MemorySavedPrinters()
 
-    private fun viewModel() = PrinterSettingsViewModel(store, printer, finder, saved)
+    private val defaultCategory = object : DefaultCategoryStore {
+        override var category: Category? = null
+    }
+
+    private fun viewModel() = PrinterSettingsViewModel(store, printer, finder, saved, defaultCategory)
 
     private fun PrinterSettingsViewModel.passTestPrint(address: String) {
         editAddress(address)
@@ -246,7 +251,7 @@ class PrinterSettingsViewModelTest {
     }
 
     @Test
-    fun `a test print that goes through saves the printer and asks for its name and category`() {
+    fun `a test print that goes through saves the printer and asks for its name`() {
         val viewModel = viewModel()
 
         viewModel.passTestPrint("192.168.1.60")
@@ -268,26 +273,26 @@ class PrinterSettingsViewModelTest {
     }
 
     @Test
-    fun `editing a printer keeps the name and category`() {
+    fun `editing a printer keeps the name`() {
         val viewModel = viewModel()
         viewModel.passTestPrint("192.168.1.60")
 
-        viewModel.edit(viewModel.state.value.editing!!, " 倉庫 ", Category.MILK)
+        viewModel.edit(viewModel.state.value.editing!!, " 倉庫 ")
 
-        assertEquals(SavedPrinter("192.168.1.60", "TM-m30II", "倉庫", Category.MILK), saved.printers.single())
+        assertEquals(SavedPrinter("192.168.1.60", "TM-m30II", "倉庫"), saved.printers.single())
         assertNull(viewModel.state.value.editing)
     }
 
     @Test
-    fun `the category can be changed back to 全部 later`() {
-        val printer = SavedPrinter("192.168.1.60", "TM-m30II", "倉庫", Category.ICE_CREAM)
-        saved.printers = listOf(printer)
+    fun `the default category starts as 全部 and is kept as soon as it is chosen`() {
         val viewModel = viewModel()
+        assertNull(viewModel.state.value.defaultCategory)
 
-        viewModel.startEditing(printer)
-        viewModel.edit(printer, "倉庫", null)
+        viewModel.chooseDefaultCategory(Category.ICE_CREAM)
 
-        assertNull(saved.printers.single().category)
+        assertEquals(Category.ICE_CREAM, defaultCategory.category)
+        assertEquals(Category.ICE_CREAM, viewModel.state.value.defaultCategory)
+        assertEquals(Category.ICE_CREAM, viewModel().state.value.defaultCategory)
     }
 
     @Test
