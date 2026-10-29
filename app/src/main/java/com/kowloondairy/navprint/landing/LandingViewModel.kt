@@ -38,18 +38,24 @@ class LandingViewModel(
     private val deliveryNotes: DeliveryNoteSource,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        LandingUiState(
-            today = today,
-            deliveryDate = today.plusDays(1),
-            category = null,
-            deliveryNoteOptions = emptyList(),
-            loadStatus = LoadStatus.NOT_QUERIED,
-        )
+    private val start = LandingUiState(
+        today = today,
+        deliveryDate = today.plusDays(1),
+        category = null,
+        deliveryNoteOptions = emptyList(),
+        loadStatus = LoadStatus.NOT_QUERIED,
     )
+
+    private val _state = MutableStateFlow(start)
     val state: StateFlow<LandingUiState> = _state.asStateFlow()
 
     private var loading: Job? = null
+
+    /** Back from the preview: the page as when the app opens, with no list from before. */
+    fun startOver() {
+        loading?.cancel()
+        _state.value = start
+    }
 
     fun chooseDeliveryDate(date: LocalDate) {
         if (date == _state.value.deliveryDate) return
@@ -80,6 +86,12 @@ class LandingViewModel(
 
     fun retry() = load()
 
+    /** From the 未打印提醒: tomorrow's 送貨單 of every 類別, with the 未打印 ones ticked. */
+    fun showUnprinted() {
+        _state.update { it.copy(deliveryDate = today.plusDays(1), category = null) }
+        load { notes -> notes.filterNot { it.printed }.map { it.number }.toSet() }
+    }
+
     /** The list no longer matches the date and 類別, so drop it until 查詢 is pressed again. */
     private fun clear() {
         loading?.cancel()
@@ -88,8 +100,11 @@ class LandingViewModel(
         }
     }
 
-    /** Replaces any load still running, so the list always matches the latest date and category. */
-    private fun load() {
+    /**
+     * Replaces any load still running, so the list always matches the latest date and category.
+     * [tick] picks which of the loaded 送貨單 start ticked.
+     */
+    private fun load(tick: (List<DeliveryNote>) -> Set<String> = { emptySet() }) {
         loading?.cancel()
         _state.update {
             it.copy(selected = emptySet(), deliveryNoteOptions = emptyList(), loadStatus = LoadStatus.LOADING)
@@ -98,7 +113,9 @@ class LandingViewModel(
         loading = viewModelScope.launch {
             try {
                 val notes = deliveryNotes.find(deliveryDate, category)
-                _state.update { it.copy(deliveryNoteOptions = notes, loadStatus = LoadStatus.LOADED) }
+                _state.update {
+                    it.copy(deliveryNoteOptions = notes, loadStatus = LoadStatus.LOADED, selected = tick(notes))
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

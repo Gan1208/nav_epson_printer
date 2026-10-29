@@ -30,10 +30,12 @@ data class SqlConnectionSettings(
     }
 }
 
-fun SqlConnectionSettings.openReadOnly(): Connection {
+fun SqlConnectionSettings.open(): Connection {
     Class.forName("net.sourceforge.jtds.jdbc.Driver")
-    return DriverManager.getConnection(jdbcUrl, user, password).apply { isReadOnly = true }
+    return DriverManager.getConnection(jdbcUrl, user, password)
 }
+
+fun SqlConnectionSettings.openReadOnly(): Connection = open().apply { isReadOnly = true }
 
 /** Android's Timestamp has no valueOf(LocalDateTime); midnight in the phone's zone is the same thing. */
 fun LocalDate.startTimestamp() =
@@ -57,12 +59,17 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
         val placeholders = locations.joinToString { "?" }
         // A 送貨單 has many lines; one row per (Delivery ID, location, 訂單) gives its 類別, 訂單 and customer.
         // Each line's 訂單 is [Document No_]; a 訂單 with no header or a NULL flag counts as not a 訂閱單.
+        // Column 6 is the 送貨單's line count now, column 7 the count when it was printed (NULL if never):
+        // it is 已打印 only when they match. A 送貨單 is one 類別, so the location filter keeps all its lines.
         val sql = """
             SELECT l.[Delivery ID], l.[Location Code], l.[Document No_],
                    MAX(CASE WHEN h.[MagIs_order_subscription] > 0 THEN 1 ELSE 0 END),
-                   MAX(h.[Ship-to Name])
+                   MAX(h.[Ship-to Name]),
+                   SUM(COUNT(*)) OVER (PARTITION BY l.[Delivery ID]),
+                   MAX(p.[Line Count])
             FROM [dbo].[Home Delivery${'$'}Sales Line] l
             LEFT JOIN [dbo].[Home Delivery${'$'}Sales Header] h ON h.[No_] = l.[Document No_]
+            LEFT JOIN [dbo].[Home Delivery${'$'}Printed Record] p ON p.[Delivery ID] = l.[Delivery ID]
             WHERE l.[Requested Delivery Date] >= ? AND l.[Requested Delivery Date] < ?
               AND l.[Location Code] IN ($placeholders)
               AND l.[Delivery ID] <> ''
@@ -81,6 +88,7 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
                     while (rows.next()) {
                         val number = rows.getString(1).trim()
                         val noteCategory = categoryOf(rows.getString(2).trim()) ?: continue
+                        val printedLineCount = rows.getInt(7).takeUnless { rows.wasNull() }
                         notes += DeliveryNote(
                             number = number,
                             deliveryDate = deliveryDate,
@@ -88,6 +96,7 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
                             hasSubscriptionOrder = rows.getInt(4) > 0,
                             orderNumbers = listOf(rows.getString(3).orEmpty().trim()),
                             customerName = rows.getString(5).orEmpty().trim(),
+                            printed = printedLineCount == rows.getInt(6),
                         )
                     }
                 }

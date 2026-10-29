@@ -24,6 +24,8 @@ data class Receipt(
     /** Only 訂單 with something to deliver. */
     val orders: List<ReceiptOrder>,
     val personalMessage: String?,
+    /** How many NAV lines it was built from; a different count later means the 送貨單 changed. */
+    val lineCount: Int = 0,
 ) {
     /** On the 回單 and 執貨單, e.g. `#20/10/26###HDDN230451799##`. */
     val returnQrContent: String
@@ -102,6 +104,7 @@ fun buildReceipt(note: DeliveryNote, rows: List<ReceiptRow>): Receipt {
         routes = rows.map { it.locationCode.trim() }.distinct().sorted(),
         orders = orders,
         personalMessage = first.message?.trim()?.takeIf { it.length > 1 },
+        lineCount = rows.size,
     )
 }
 

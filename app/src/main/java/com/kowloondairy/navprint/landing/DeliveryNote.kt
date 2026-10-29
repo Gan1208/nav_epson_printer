@@ -17,6 +17,8 @@ data class DeliveryNote(
     val orderNumbers: List<String> = emptyList(),
     /** The name the 收據 shows: from the first of [orderNumbers]. */
     val customerName: String = "",
+    /** 已打印: its whole 收據 was printed, and it has not changed since. */
+    val printed: Boolean = false,
 ) {
     /** What people see: the last four characters of [number], plus `**` for a 訂閱單. */
     val displayNumber: String

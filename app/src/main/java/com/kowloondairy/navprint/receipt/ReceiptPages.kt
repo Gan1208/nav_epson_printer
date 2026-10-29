@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
@@ -46,8 +47,8 @@ import com.kowloondairy.navprint.R
 val PaperWidth = 288.dp
 
 private val ink = Color.Black
-private val bodyStyle = TextStyle(color = ink, fontSize = 11.sp, fontWeight = FontWeight.Medium, lineHeight = 15.sp)
-private val packingStyle = TextStyle(color = ink, fontSize = 33.sp, fontWeight = FontWeight.Medium, lineHeight = 45.sp)
+private val bodyStyle = TextStyle(color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold, lineHeight = 15.sp)
+private val packingStyle = TextStyle(color = ink, fontSize = 33.sp, fontWeight = FontWeight.Bold, lineHeight = 45.sp)
 private val labelWidth = 58.dp
 private val qrSize = 84.dp
 
@@ -154,7 +155,8 @@ private fun ColumnScope.DeliveryDetails(receipt: Receipt) {
     Image(
         painter = painterResource(R.drawable.kdl_receipt_logo),
         contentDescription = null,
-        modifier = Modifier.width(231.dp).align(Alignment.CenterHorizontally),
+        // 45% of the paper's width, centred.
+        modifier = Modifier.requiredWidth(PaperWidth * 0.45f).align(Alignment.CenterHorizontally),
     )
     Gap(20.dp)
     Text("Delivery Date :  ${receipt.deliveryDateText}")

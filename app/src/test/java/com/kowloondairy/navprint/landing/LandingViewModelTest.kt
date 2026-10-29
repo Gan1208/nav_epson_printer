@@ -142,6 +142,24 @@ class LandingViewModelTest {
     }
 
     @Test
+    fun `starting over drops the list and goes back to tomorrow, all categories`() {
+        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+        viewModel.chooseDeliveryDate(today)
+        viewModel.chooseCategory(Category.MILK)
+        viewModel.query()
+        viewModel.toggle(milkToday)
+
+        viewModel.startOver()
+
+        val state = viewModel.state.value
+        assertEquals(tomorrow, state.deliveryDate)
+        assertNull(state.category)
+        assertEquals(LoadStatus.NOT_QUERIED, state.loadStatus)
+        assertEquals(emptyList<DeliveryNote>(), state.deliveryNoteOptions)
+        assertFalse(state.canPrint)
+    }
+
+    @Test
     fun `查詢 again starts with nothing ticked`() {
         val viewModel = queried()
         viewModel.toggle(milkTomorrow)
@@ -175,5 +193,22 @@ class LandingViewModelTest {
 
         viewModel.toggleAll()
         assertFalse(viewModel.state.value.canPrint)
+    }
+
+    @Test
+    fun `the 未打印提醒 opens tomorrow, every 類別, with the 未打印 ones ticked`() {
+        val printedTomorrow = DeliveryNote("D004", tomorrow, Category.MILK, printed = true)
+        val source = FakeSource(listOf(milkTomorrow, iceCreamTomorrow, printedTomorrow, milkToday))
+        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+        viewModel.chooseDeliveryDate(today)
+        viewModel.chooseCategory(Category.MILK)
+
+        viewModel.showUnprinted()
+
+        val state = viewModel.state.value
+        assertEquals(listOf(tomorrow to null), source.asked)
+        assertEquals(tomorrow, state.deliveryDate)
+        assertNull(state.category)
+        assertEquals(setOf("D001", "D002"), state.selected)
     }
 }

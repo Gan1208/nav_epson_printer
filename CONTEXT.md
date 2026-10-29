@@ -47,6 +47,14 @@ _Avoid_: Printer list, paired printer
 A name staff give a 已儲存打印機 so others can tell which one they are using, e.g. 倉庫. Optional, and two printers may share one; the IP tells them apart.
 _Avoid_: Label, alias
 
+**已打印 (Printed)**:
+A 送貨單 whose whole 收據 (all three pages) has come out of a printer. Pressing print is not enough; a failed print leaves it 未打印. If the 送貨單 changes after printing (lines added or removed), it is 未打印 again.
+_Avoid_: Sent, done
+
+**未打印提醒 (Unprinted alert)**:
+A loud alert, between 4 and 6 in the afternoon, on phones that turned it on, when a 送貨單 for tomorrow's 送貨日 is not yet 已打印. It is there because 送貨單 can appear after the 4 o'clock print.
+_Avoid_: New order alert
+
 **回單 (Return Receipt)**:
 The page the fleet team brings back. The customer signs it, and the fleet team writes how many bottles came back.
 

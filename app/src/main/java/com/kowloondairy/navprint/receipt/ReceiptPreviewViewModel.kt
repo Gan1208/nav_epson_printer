@@ -45,6 +45,7 @@ class ReceiptPreviewViewModel(
     val deliveryNotes: List<DeliveryNote>,
     private val receipts: ReceiptSource,
     private val printer: ReceiptPrinter,
+    private val printedRecord: PrintedRecord,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ReceiptPreviewState>(ReceiptPreviewState.Loading)
@@ -109,10 +110,19 @@ class ReceiptPreviewViewModel(
                     _printStatus.value = PrintStatus.Failed(problem, jobs.drop(i), printed, total)
                     return@launch
                 }
+                recordIfWhole(job)
                 _printStatus.value = PrintStatus.Printing(printed + 1, total, stopRequested)
             }
             _printStatus.value = PrintStatus.Printed
         }
+    }
+
+    /** Only all three pages make a 送貨單 已打印; recording runs beside printing so it never holds the next one up. */
+    private fun recordIfWhole(job: PrintJob) {
+        if (!job.pages.containsAll(ReceiptPage.entries)) return
+        val receipt = (_state.value as? ReceiptPreviewState.Loaded)?.receipts
+            ?.firstOrNull { it.deliveryNote.number == job.deliveryNote.number } ?: return
+        viewModelScope.launch { printedRecord.markPrinted(receipt) }
     }
 
     /** Loads every 收據, or none: a day is never shown with one missing. */

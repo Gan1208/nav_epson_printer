@@ -66,8 +66,17 @@ class ReceiptPreviewViewModelTest {
         override suspend fun printTest() = Unit
     }
 
+    private class FakePrintedRecord : PrintedRecord {
+        val marked = mutableListOf<String>()
+
+        override suspend fun markPrinted(receipt: Receipt) {
+            marked += receipt.deliveryNote.number
+        }
+    }
+
     private val source = FakeSource()
     private val printer = FakePrinter()
+    private val printedRecord = FakePrintedRecord()
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -76,7 +85,29 @@ class ReceiptPreviewViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private fun viewModel(vararg notes: DeliveryNote = arrayOf(note)) =
-        ReceiptPreviewViewModel(notes.toList(), source, printer)
+        ReceiptPreviewViewModel(notes.toList(), source, printer, printedRecord)
+
+    @Test
+    fun `records each 送貨單 as printed once its three pages are out`() {
+        printer.failOnceAt = 1
+        val viewModel = viewModel(note, note2, note3)
+
+        viewModel.print(listOf(job(note), job(note2), job(note3)), render)
+        assertEquals(listOf(note.number), printedRecord.marked)
+
+        viewModel.retryPrint(render)
+        assertEquals(listOf(note.number, note2.number, note3.number), printedRecord.marked)
+    }
+
+    @Test
+    fun `one page alone does not make a 送貨單 printed`() {
+        val viewModel = viewModel()
+
+        viewModel.print(listOf(job(note, listOf(ReceiptPage.PACKING))), render)
+
+        assertEquals(PrintStatus.Printed, viewModel.printStatus.value)
+        assertEquals(emptyList<String>(), printedRecord.marked)
+    }
 
     @Test
     fun `loads the 收據 for the chosen 送貨單`() {
@@ -209,7 +240,7 @@ class ReceiptPreviewViewModelTest {
 
             override suspend fun printTest() = Unit
         }
-        val viewModel = ReceiptPreviewViewModel(listOf(note, note2, note3), source, drawingPrinter)
+        val viewModel = ReceiptPreviewViewModel(listOf(note, note2, note3), source, drawingPrinter, printedRecord)
 
         viewModel.print(listOf(job(note), job(note2), job(note3)), recordingRender)
         viewModel.retryPrint(recordingRender)

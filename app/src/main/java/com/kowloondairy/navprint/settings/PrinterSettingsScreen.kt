@@ -60,6 +60,8 @@ fun PrinterSettingsScreen(
     onName: (SavedPrinter, String) -> Unit,
     onCancelNaming: () -> Unit,
     onRemove: (SavedPrinter) -> Unit,
+    /** Settings that are not about printers, shown under them. */
+    moreSettings: @Composable () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -123,6 +125,7 @@ fun PrinterSettingsScreen(
                 is TestPrintStatus.Failed -> Text(test.problem.message, color = MaterialTheme.colorScheme.error)
             }
             SavedPrinterList(state, onChoose, onStartNaming, onRemove)
+            moreSettings()
         }
     }
 

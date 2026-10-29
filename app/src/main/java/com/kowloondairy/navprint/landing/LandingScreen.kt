@@ -266,12 +266,14 @@ private fun DeliveryNoteList(
         // Its tick is 全選; the 預覽 button already shows how many are picked.
         TickRow(checked = state.allSelected, onToggle = onToggleAll) {
             ThreeColumns("送貨單號", "名字", "訂單號", FontWeight.Bold, Modifier.weight(1f))
+            PrintedColumn("打印", FontWeight.Bold)
         }
         HorizontalDivider()
         LazyColumn(Modifier.fillMaxWidth()) {
             items(notes, key = { it.number }) { note ->
                 TickRow(checked = note.number in state.selected, onToggle = { onToggle(note) }) {
                     DeliveryNoteRow(note, Modifier.weight(1f))
+                    PrintedColumn(if (note.printed) "✓" else "")
                 }
                 HorizontalDivider()
             }
@@ -310,6 +312,18 @@ private fun DeliveryNoteRow(note: DeliveryNote, modifier: Modifier = Modifier) {
         else -> "${orders.first()} +${orders.size - 1}"
     }
     ThreeColumns(note.displayNumber, note.customerName, orderText, modifier = modifier)
+}
+
+/** The 打印 column: its heading, or ✓ for a 已打印 送貨單. Fixed width, so it lines up down the list. */
+@Composable
+private fun PrintedColumn(text: String, fontWeight: FontWeight? = null) {
+    Text(
+        text,
+        fontWeight = fontWeight,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        modifier = Modifier.width(48.dp),
+    )
 }
 
 /** Equal, centred columns, shared by the heading and every row so they line up. */
