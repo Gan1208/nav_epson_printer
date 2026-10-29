@@ -14,10 +14,14 @@ import java.time.LocalDate
 /** [NOT_QUERIED]: 查詢 has not been pressed since the date or 類別 last changed. */
 enum class LoadStatus { NOT_QUERIED, LOADING, LOADED, FAILED }
 
-/** [category] null means 全部. [selected] holds the 送貨單號 of the ticked 送貨單. */
+/**
+ * [printer] says which printer is in use, e.g. 「倉庫」. [category] is its 類別; null means 全部.
+ * [selected] holds the 送貨單號 of the ticked 送貨單.
+ */
 data class LandingUiState(
     val today: LocalDate,
     val deliveryDate: LocalDate,
+    val printer: String,
     val category: Category?,
     val deliveryNoteOptions: List<DeliveryNote>,
     val loadStatus: LoadStatus,
@@ -33,15 +37,19 @@ data class LandingUiState(
         get() = deliveryNoteOptions.isNotEmpty() && deliveryNoteOptions.all { it.number in selected }
 }
 
+/** [printer] and [category] are those of the printer in use when the app opens; see [usePrinter]. */
 class LandingViewModel(
     private val today: LocalDate,
     private val deliveryNotes: DeliveryNoteSource,
+    printer: String,
+    category: Category?,
 ) : ViewModel() {
 
     private val start = LandingUiState(
         today = today,
         deliveryDate = today.plusDays(1),
-        category = null,
+        printer = printer,
+        category = category,
         deliveryNoteOptions = emptyList(),
         loadStatus = LoadStatus.NOT_QUERIED,
     )
@@ -51,10 +59,10 @@ class LandingViewModel(
 
     private var loading: Job? = null
 
-    /** Back from the preview: the page as when the app opens, with no list from before. */
+    /** Back from the preview: the page as when the app opens, with no list from before. The printer stays. */
     fun startOver() {
         loading?.cancel()
-        _state.value = start
+        _state.value = start.copy(printer = _state.value.printer, category = _state.value.category)
     }
 
     fun chooseDeliveryDate(date: LocalDate) {
@@ -63,7 +71,9 @@ class LandingViewModel(
         clear()
     }
 
-    fun chooseCategory(category: Category?) {
+    /** The printer in use, as 設定 left it. A new 類別 drops the list until 查詢 is pressed again. */
+    fun usePrinter(printer: String, category: Category?) {
+        _state.update { it.copy(printer = printer) }
         if (category == _state.value.category) return
         _state.update { it.copy(category = category) }
         clear()
@@ -86,9 +96,9 @@ class LandingViewModel(
 
     fun retry() = load()
 
-    /** From the 未打印提醒: tomorrow's 送貨單 of every 類別, with the 未打印 ones ticked. */
+    /** From the 未打印提醒: tomorrow's 送貨單 of the printer's 類別, with the 未打印 ones ticked. */
     fun showUnprinted() {
-        _state.update { it.copy(deliveryDate = today.plusDays(1), category = null) }
+        _state.update { it.copy(deliveryDate = today.plusDays(1)) }
         load { notes -> notes.filterNot { it.printed }.map { it.number }.toSet() }
     }
 

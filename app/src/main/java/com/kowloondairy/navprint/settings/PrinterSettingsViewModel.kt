@@ -2,6 +2,7 @@ package com.kowloondairy.navprint.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kowloondairy.navprint.landing.Category
 import com.kowloondairy.navprint.print.PrintFailure
 import com.kowloondairy.navprint.print.PrintProblem
 import com.kowloondairy.navprint.print.PrinterAddressStore
@@ -41,8 +42,8 @@ data class PrinterSettingsState(
     /** The saved IP, which everything prints to. */
     val inUse: String = address,
     val saved: List<SavedPrinter> = emptyList(),
-    /** The 已儲存打印機 whose 打印機名稱 is being typed, if any. */
-    val naming: SavedPrinter? = null,
+    /** The 已儲存打印機 whose 打印機名稱 and 類別 are being changed, if any. */
+    val editing: SavedPrinter? = null,
 ) {
     /** Searching or printing: the IP and buttons are locked until it finishes. */
     val busy: Boolean
@@ -78,13 +79,16 @@ class PrinterSettingsViewModel(
     }
 
     /** The ✎ on a 已儲存打印機. */
-    fun startNaming(printer: SavedPrinter) = _state.update { it.copy(naming = printer) }
+    fun startEditing(printer: SavedPrinter) = _state.update { it.copy(editing = printer) }
 
-    fun cancelNaming() = _state.update { it.copy(naming = null) }
+    fun cancelEditing() = _state.update { it.copy(editing = null) }
 
-    fun name(printer: SavedPrinter, name: String) {
-        updateSaved { saved -> saved.map { if (it.address == printer.address) it.copy(name = name.trim()) else it } }
-        cancelNaming()
+    /** [category] null means 全部. */
+    fun edit(printer: SavedPrinter, name: String, category: Category?) {
+        updateSaved { saved ->
+            saved.map { if (it.address == printer.address) it.copy(name = name.trim(), category = category) else it }
+        }
+        cancelEditing()
     }
 
     /** After the person said 刪除. The IP in use stays in use. */
@@ -151,11 +155,11 @@ class PrinterSettingsViewModel(
         }
     }
 
-    /** A new 已儲存打印機 is asked for its 打印機名稱; one seen before keeps its own. */
+    /** A new 已儲存打印機 is asked for its 打印機名稱 and 類別; one seen before keeps its own. */
     private fun rememberPrinter() {
         val address = _state.value.inUse
         val isNew = _state.value.saved.none { it.address == address }
         updateSaved { it.withSuccess(SavedPrinter(address, foundModel)) }
-        if (isNew) _state.update { it.copy(naming = it.saved.first()) }
+        if (isNew) _state.update { it.copy(editing = it.saved.first()) }
     }
 }

@@ -1,6 +1,7 @@
 package com.kowloondairy.navprint.settings
 
 import android.graphics.Bitmap
+import com.kowloondairy.navprint.landing.Category
 import com.kowloondairy.navprint.print.PrintFailure
 import com.kowloondairy.navprint.print.PrintProblem
 import com.kowloondairy.navprint.print.PrinterAddressStore
@@ -245,14 +246,14 @@ class PrinterSettingsViewModelTest {
     }
 
     @Test
-    fun `a test print that goes through saves the printer and asks for its name`() {
+    fun `a test print that goes through saves the printer and asks for its name and category`() {
         val viewModel = viewModel()
 
         viewModel.passTestPrint("192.168.1.60")
 
         val printer = SavedPrinter("192.168.1.60", "TM-m30II")
         assertEquals(listOf(printer), saved.printers)
-        assertEquals(printer, viewModel.state.value.naming)
+        assertEquals(printer, viewModel.state.value.editing)
     }
 
     @Test
@@ -263,18 +264,30 @@ class PrinterSettingsViewModelTest {
         viewModel.passTestPrint("192.168.1.60")
 
         assertEquals(emptyList<SavedPrinter>(), saved.printers)
-        assertNull(viewModel.state.value.naming)
+        assertNull(viewModel.state.value.editing)
     }
 
     @Test
-    fun `naming a printer keeps the name`() {
+    fun `editing a printer keeps the name and category`() {
         val viewModel = viewModel()
         viewModel.passTestPrint("192.168.1.60")
 
-        viewModel.name(viewModel.state.value.naming!!, " 倉庫 ")
+        viewModel.edit(viewModel.state.value.editing!!, " 倉庫 ", Category.MILK)
 
-        assertEquals("倉庫", saved.printers.single().name)
-        assertNull(viewModel.state.value.naming)
+        assertEquals(SavedPrinter("192.168.1.60", "TM-m30II", "倉庫", Category.MILK), saved.printers.single())
+        assertNull(viewModel.state.value.editing)
+    }
+
+    @Test
+    fun `the category can be changed back to 全部 later`() {
+        val printer = SavedPrinter("192.168.1.60", "TM-m30II", "倉庫", Category.ICE_CREAM)
+        saved.printers = listOf(printer)
+        val viewModel = viewModel()
+
+        viewModel.startEditing(printer)
+        viewModel.edit(printer, "倉庫", null)
+
+        assertNull(saved.printers.single().category)
     }
 
     @Test
@@ -288,7 +301,7 @@ class PrinterSettingsViewModelTest {
             listOf(SavedPrinter("192.168.1.60", "TM-m30II", "倉庫"), SavedPrinter("192.168.1.61", null, "寫字樓")),
             saved.printers,
         )
-        assertNull(viewModel.state.value.naming)
+        assertNull(viewModel.state.value.editing)
     }
 
     @Test

@@ -36,15 +36,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,10 +50,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.LocalDate
@@ -70,9 +70,6 @@ private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 private val fieldShape = RoundedCornerShape(12.dp)
 private val fieldHeight = 56.dp
 
-/** 全部 first, then each [Category]. */
-private val categoryChoices: List<Category?> = listOf(null) + Category.entries
-
 /** Shortcut chips under the date field, as days after today. */
 private val quickDates = listOf(0L to "今日", 1L to "明日")
 
@@ -80,12 +77,31 @@ private val quickDates = listOf(0L to "今日", 1L to "明日")
 private fun LocalDate.display(): String =
     "${format(dateFormat)}（${dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.TRADITIONAL_CHINESE)}）"
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Everything on this page, text and boxes alike, is drawn this much bigger than the phone's own size. */
+private const val PAGE_SCALE = 1.2f
+
 @Composable
 fun LandingScreen(
     state: LandingUiState,
     onDeliveryDateChosen: (LocalDate) -> Unit,
-    onCategoryChosen: (Category?) -> Unit,
+    onQuery: () -> Unit,
+    onToggle: (DeliveryNote) -> Unit,
+    onToggleAll: () -> Unit,
+    onRetry: () -> Unit,
+    onPreview: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density * PAGE_SCALE, density.fontScale)) {
+        LandingPage(state, onDeliveryDateChosen, onQuery, onToggle, onToggleAll, onRetry, onPreview, onSettings)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LandingPage(
+    state: LandingUiState,
+    onDeliveryDateChosen: (LocalDate) -> Unit,
     onQuery: () -> Unit,
     onToggle: (DeliveryNote) -> Unit,
     onToggleAll: () -> Unit,
@@ -130,8 +146,8 @@ fun LandingScreen(
                 .padding(start = 16.dp, top = 16.dp, end = 16.dp)
                 .fillMaxSize(),
         ) {
+            PrinterCategory(state.printer, state.category)
             DeliveryDateField(state.today, state.deliveryDate, onDeliveryDateChosen)
-            CategoryField(state.category, onCategoryChosen)
             OutlinedButton(
                 onClick = onQuery,
                 shape = fieldShape,
@@ -214,24 +230,16 @@ private fun DeliveryDateField(today: LocalDate, date: LocalDate, onChosen: (Loca
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** e.g. 倉庫 · 牛奶. Only shown: the 類別 is changed with the printer in 設定. */
 @Composable
-private fun CategoryField(category: Category?, onChosen: (Category?) -> Unit) {
-    // No 類別 heading: 全部 / 牛奶 / 雪糕 already say what this is.
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        categoryChoices.forEachIndexed { index, choice ->
-            SegmentedButton(
-                selected = choice == category,
-                onClick = { onChosen(choice) },
-                shape = SegmentedButtonDefaults.itemShape(
-                    index = index,
-                    count = categoryChoices.size,
-                    baseShape = fieldShape,
-                ),
-                modifier = Modifier.height(fieldHeight),
-            ) { Text(choice?.label ?: "全部") }
-        }
-    }
+private fun PrinterCategory(printer: String, category: Category?) {
+    Text(
+        "$printer · ${category.choiceLabel}",
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+    )
 }
 
 /** The 送貨單 found by 查詢, each with a tick; or why there are none. */
@@ -247,7 +255,7 @@ private fun DeliveryNoteList(
     if (notes.isEmpty()) {
         Box(contentAlignment = Alignment.Center, modifier = modifier.fillMaxWidth()) {
             when (state.loadStatus) {
-                LoadStatus.NOT_QUERIED -> Hint("揀好日期同類別，撳「查詢」")
+                LoadStatus.NOT_QUERIED -> Hint("揀好日期，撳「查詢」")
                 LoadStatus.LOADING -> CircularProgressIndicator()
                 LoadStatus.LOADED -> Hint("沒有送貨單")
                 LoadStatus.FAILED -> Column(

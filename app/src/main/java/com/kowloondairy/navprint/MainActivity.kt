@@ -24,7 +24,9 @@ import com.kowloondairy.navprint.print.EpsonPrinterFinder
 import com.kowloondairy.navprint.print.EpsonReceiptPrinter
 import com.kowloondairy.navprint.print.SharedPrefsPrinterAddressStore
 import com.kowloondairy.navprint.print.SharedPrefsSavedPrinterStore
+import com.kowloondairy.navprint.print.categoryInUse
 import com.kowloondairy.navprint.print.printerInUse
+import com.kowloondairy.navprint.print.printerName
 import com.kowloondairy.navprint.receipt.ReceiptPreviewScreen
 import com.kowloondairy.navprint.receipt.ReceiptPreviewViewModel
 import com.kowloondairy.navprint.receipt.SqlPrintedRecord
@@ -46,7 +48,12 @@ class MainActivity : ComponentActivity() {
                 val viewModel: LandingViewModel = viewModel(
                     factory = viewModelFactory {
                         initializer {
-                            LandingViewModel(LocalDate.now(), SqlDeliveryNoteSource(navSqlSettings))
+                            LandingViewModel(
+                                LocalDate.now(),
+                                SqlDeliveryNoteSource(navSqlSettings),
+                                printerName(printerAddresses.address, savedPrinters.printers),
+                                categoryInUse(printerAddresses.address, savedPrinters.printers),
+                            )
                         }
                     }
                 )
@@ -66,17 +73,26 @@ class MainActivity : ComponentActivity() {
                         viewModel.startOver()
                         previewing = null
                     })
-                    else -> LandingScreen(
-                        state = state,
-                        onDeliveryDateChosen = viewModel::chooseDeliveryDate,
-                        onCategoryChosen = viewModel::chooseCategory,
-                        onQuery = viewModel::query,
-                        onToggle = viewModel::toggle,
-                        onToggleAll = viewModel::toggleAll,
-                        onRetry = viewModel::retry,
-                        onPreview = { previewing = state.toPreview },
-                        onSettings = { inSettings = true },
-                    )
+                    else -> {
+                        // Each time the page shows, so a printer or 類別 changed in 設定 is picked up.
+                        LaunchedEffect(Unit) {
+                            val saved = savedPrinters.printers
+                            viewModel.usePrinter(
+                                printerName(printerAddresses.address, saved),
+                                categoryInUse(printerAddresses.address, saved),
+                            )
+                        }
+                        LandingScreen(
+                            state = state,
+                            onDeliveryDateChosen = viewModel::chooseDeliveryDate,
+                            onQuery = viewModel::query,
+                            onToggle = viewModel::toggle,
+                            onToggleAll = viewModel::toggleAll,
+                            onRetry = viewModel::retry,
+                            onPreview = { previewing = state.toPreview },
+                            onSettings = { inSettings = true },
+                        )
+                    }
                 }
             }
         }
@@ -127,9 +143,9 @@ class MainActivity : ComponentActivity() {
             onConfirmTestPrint = viewModel::confirmTestPrint,
             onCancelTestPrint = viewModel::cancelTestPrint,
             onChoose = viewModel::choose,
-            onStartNaming = viewModel::startNaming,
-            onName = viewModel::name,
-            onCancelNaming = viewModel::cancelNaming,
+            onStartEditing = viewModel::startEditing,
+            onEdit = viewModel::edit,
+            onCancelEditing = viewModel::cancelEditing,
             onRemove = viewModel::remove,
             moreSettings = { UnprintedAlertSection() },
         )

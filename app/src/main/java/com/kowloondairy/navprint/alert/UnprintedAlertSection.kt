@@ -10,7 +10,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -23,7 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 
@@ -55,14 +60,17 @@ fun UnprintedAlertSection() {
         HorizontalDivider()
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("未打印提醒", style = MaterialTheme.typography.titleMedium)
+                Text("未打印提醒", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
                     "下午 4 至 6 點每 5 分鐘檢查明日送貨單，有未打印就響鬧鐘",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Spacer(Modifier.width(16.dp))
             Switch(
+                // As big as the printer buttons above it.
+                modifier = Modifier.scale(1.3f),
                 checked = enabled,
                 onCheckedChange = { on ->
                     enabled = on
@@ -98,7 +106,14 @@ private fun Fix(problem: String, action: String, onFix: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(problem, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
-        OutlinedButton(onClick = onFix) { Text(action) }
+        Text(
+            problem,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedButton(onClick = onFix, modifier = Modifier.height(64.dp)) {
+            Text(action, style = MaterialTheme.typography.titleMedium)
+        }
     }
 }

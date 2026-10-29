@@ -46,31 +46,35 @@ class LandingViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun queried(): LandingViewModel =
-        LandingViewModel(today = today, deliveryNotes = source).also { it.query() }
+    /** As the app opens with a printer of [category] in use. */
+    private fun landing(source: DeliveryNoteSource = this.source, category: Category? = null) =
+        LandingViewModel(today = today, deliveryNotes = source, printer = "倉庫", category = category)
+
+    private fun queried(category: Category? = null): LandingViewModel = landing(category = category).also { it.query() }
 
     @Test
-    fun `starts on tomorrow, all categories, and asks nothing until 查詢`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+    fun `starts on tomorrow, the printer's category, and asks nothing until 查詢`() {
+        val viewModel = landing(category = Category.MILK)
 
         val state = viewModel.state.value
         assertEquals(tomorrow, state.deliveryDate)
-        assertNull(state.category)
+        assertEquals("倉庫", state.printer)
+        assertEquals(Category.MILK, state.category)
         assertEquals(LoadStatus.NOT_QUERIED, state.loadStatus)
         assertEquals(emptyList<Pair<LocalDate, Category?>>(), source.asked)
     }
 
     @Test
-    fun `查詢 lists the delivery notes for the chosen date and category`() {
+    fun `查詢 lists the delivery notes for the chosen date and the printer's category`() {
         val viewModel = queried()
         assertEquals(listOf(milkTomorrow, iceCreamTomorrow), viewModel.state.value.deliveryNoteOptions)
 
-        viewModel.chooseCategory(Category.ICE_CREAM)
+        viewModel.usePrinter("倉庫", Category.ICE_CREAM)
         viewModel.query()
         assertEquals(tomorrow to Category.ICE_CREAM, source.asked.last())
         assertEquals(listOf(iceCreamTomorrow), viewModel.state.value.deliveryNoteOptions)
 
-        viewModel.chooseCategory(null)
+        viewModel.usePrinter("倉庫", null)
         viewModel.chooseDeliveryDate(today)
         viewModel.query()
         assertEquals(today to null, source.asked.last())
@@ -83,7 +87,7 @@ class LandingViewModelTest {
         val slowSource = object : DeliveryNoteSource {
             override suspend fun find(deliveryDate: LocalDate, category: Category?) = answer.await()
         }
-        val viewModel = LandingViewModel(today = today, deliveryNotes = slowSource)
+        val viewModel = landing(slowSource)
         viewModel.query()
 
         assertEquals(LoadStatus.LOADING, viewModel.state.value.loadStatus)
@@ -108,16 +112,29 @@ class LandingViewModelTest {
     }
 
     @Test
-    fun `changing the category clears the list and the ticks`() {
+    fun `a printer of another category clears the list and the ticks`() {
         val viewModel = queried()
         viewModel.toggle(milkTomorrow)
 
-        viewModel.chooseCategory(Category.MILK)
+        viewModel.usePrinter("寫字樓", Category.MILK)
 
         val state = viewModel.state.value
+        assertEquals("寫字樓", state.printer)
+        assertEquals(Category.MILK, state.category)
         assertEquals(LoadStatus.NOT_QUERIED, state.loadStatus)
         assertEquals(emptyList<DeliveryNote>(), state.deliveryNoteOptions)
         assertFalse(state.canPrint)
+    }
+
+    @Test
+    fun `a printer of the same category keeps the list and the ticks`() {
+        val viewModel = queried(Category.MILK)
+        viewModel.toggle(milkTomorrow)
+
+        viewModel.usePrinter("寫字樓", Category.MILK)
+
+        assertEquals("寫字樓", viewModel.state.value.printer)
+        assertEquals(listOf(milkTomorrow), viewModel.state.value.toPreview)
     }
 
     @Test
@@ -142,10 +159,10 @@ class LandingViewModelTest {
     }
 
     @Test
-    fun `starting over drops the list and goes back to tomorrow, all categories`() {
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+    fun `starting over drops the list and goes back to tomorrow, keeping the printer`() {
+        val viewModel = landing()
+        viewModel.usePrinter("寫字樓", Category.MILK)
         viewModel.chooseDeliveryDate(today)
-        viewModel.chooseCategory(Category.MILK)
         viewModel.query()
         viewModel.toggle(milkToday)
 
@@ -153,7 +170,8 @@ class LandingViewModelTest {
 
         val state = viewModel.state.value
         assertEquals(tomorrow, state.deliveryDate)
-        assertNull(state.category)
+        assertEquals("寫字樓", state.printer)
+        assertEquals(Category.MILK, state.category)
         assertEquals(LoadStatus.NOT_QUERIED, state.loadStatus)
         assertEquals(emptyList<DeliveryNote>(), state.deliveryNoteOptions)
         assertFalse(state.canPrint)
@@ -196,19 +214,28 @@ class LandingViewModelTest {
     }
 
     @Test
-    fun `the 未打印提醒 opens tomorrow, every 類別, with the 未打印 ones ticked`() {
+    fun `the 未打印提醒 opens tomorrow, the printer's 類別, with the 未打印 ones ticked`() {
         val printedTomorrow = DeliveryNote("D004", tomorrow, Category.MILK, printed = true)
         val source = FakeSource(listOf(milkTomorrow, iceCreamTomorrow, printedTomorrow, milkToday))
-        val viewModel = LandingViewModel(today = today, deliveryNotes = source)
+        val viewModel = landing(source, Category.MILK)
         viewModel.chooseDeliveryDate(today)
-        viewModel.chooseCategory(Category.MILK)
 
         viewModel.showUnprinted()
 
         val state = viewModel.state.value
-        assertEquals(listOf(tomorrow to null), source.asked)
+        assertEquals(listOf(tomorrow to Category.MILK), source.asked)
         assertEquals(tomorrow, state.deliveryDate)
-        assertNull(state.category)
-        assertEquals(setOf("D001", "D002"), state.selected)
+        assertEquals(Category.MILK, state.category)
+        assertEquals(setOf("D001"), state.selected)
+    }
+
+    @Test
+    fun `with a 全部 printer the 未打印提醒 ticks every 類別`() {
+        val viewModel = landing()
+
+        viewModel.showUnprinted()
+
+        assertEquals(listOf(tomorrow to null), source.asked)
+        assertEquals(setOf("D001", "D002"), viewModel.state.value.selected)
     }
 }

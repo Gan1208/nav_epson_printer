@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +28,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,7 +47,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.kowloondairy.navprint.landing.Category
+import com.kowloondairy.navprint.landing.choiceLabel
 import com.kowloondairy.navprint.print.SavedPrinter
+
+/** Big enough to read and tap from arm's length; the page has room, with only a few printers. */
+private val buttonHeight = 64.dp
+private val iconSize = 32.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,9 +66,9 @@ fun PrinterSettingsScreen(
     onConfirmTestPrint: () -> Unit,
     onCancelTestPrint: () -> Unit,
     onChoose: (SavedPrinter) -> Unit,
-    onStartNaming: (SavedPrinter) -> Unit,
-    onName: (SavedPrinter, String) -> Unit,
-    onCancelNaming: () -> Unit,
+    onStartEditing: (SavedPrinter) -> Unit,
+    onEdit: (SavedPrinter, String, Category?) -> Unit,
+    onCancelEditing: () -> Unit,
     onRemove: (SavedPrinter) -> Unit,
     /** Settings that are not about printers, shown under them. */
     moreSettings: @Composable () -> Unit,
@@ -95,21 +105,23 @@ fun PrinterSettingsScreen(
                 onValueChange = onAddressChanged,
                 label = { Text("打印機 IP") },
                 placeholder = { Text("例如 192.168.1.50") },
+                textStyle = MaterialTheme.typography.titleLarge,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onSave, enabled = !busy, modifier = Modifier.weight(1f)) {
-                    Text("儲存")
+                OutlinedButton(onClick = onSave, enabled = !busy, modifier = Modifier.weight(1f).height(buttonHeight)) {
+                    Text("儲存", style = MaterialTheme.typography.titleMedium)
                 }
-                Button(onClick = onTestPrint, enabled = !busy, modifier = Modifier.weight(1f)) {
+                Button(onClick = onTestPrint, enabled = !busy, modifier = Modifier.weight(1f).height(buttonHeight)) {
                     Text(
                         when (state.test) {
                             TestPrintStatus.Searching -> "搜尋打印機中…"
                             TestPrintStatus.Printing -> "打印中…"
                             else -> "測試打印"
                         },
+                        style = MaterialTheme.typography.titleMedium,
                     )
                 }
             }
@@ -121,15 +133,22 @@ fun PrinterSettingsScreen(
                     confirmButton = { TextButton(onClick = onConfirmTestPrint) { Text("打印") } },
                     dismissButton = { TextButton(onClick = onCancelTestPrint) { Text("取消") } },
                 )
-                TestPrintStatus.Passed -> Text("已送出測試打印。如打印機出紙，即表示連接成功。")
-                is TestPrintStatus.Failed -> Text(test.problem.message, color = MaterialTheme.colorScheme.error)
+                TestPrintStatus.Passed -> Text(
+                    "已送出測試打印。如打印機出紙，即表示連接成功。",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                is TestPrintStatus.Failed -> Text(
+                    test.problem.message,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
-            SavedPrinterList(state, onChoose, onStartNaming, onRemove)
+            SavedPrinterList(state, onChoose, onStartEditing, onRemove)
             moreSettings()
         }
     }
 
-    state.naming?.let { NameDialog(it, onName, onCancelNaming) }
+    state.editing?.let { EditDialog(it, onEdit, onCancelEditing) }
 }
 
 /** The 已儲存打印機, newest first; a tap puts one in use. */
@@ -137,14 +156,19 @@ fun PrinterSettingsScreen(
 private fun SavedPrinterList(
     state: PrinterSettingsState,
     onChoose: (SavedPrinter) -> Unit,
-    onStartNaming: (SavedPrinter) -> Unit,
+    onStartEditing: (SavedPrinter) -> Unit,
     onRemove: (SavedPrinter) -> Unit,
 ) {
     if (state.saved.isEmpty()) return
     var removing by remember { mutableStateOf<SavedPrinter?>(null) }
 
     Column {
-        Text("已儲存打印機", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+        Text(
+            "已儲存打印機",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
         HorizontalDivider()
         state.saved.forEach { printer ->
             Row(
@@ -152,27 +176,45 @@ private fun SavedPrinterList(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(enabled = !state.busy) { onChoose(printer) }
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 12.dp),
             ) {
                 if (printer.address == state.inUse) {
-                    Icon(Icons.Filled.Check, contentDescription = "使用中", tint = MaterialTheme.colorScheme.primary)
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = "使用中",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(iconSize),
+                    )
                 } else {
-                    Spacer(Modifier.size(24.dp))
+                    Spacer(Modifier.size(iconSize))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(printer.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        listOfNotNull(printer.address, printer.model).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
+                        printer.label,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        listOfNotNull(printer.address, printer.model, printer.category.choiceLabel).joinToString(" · "),
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { onStartNaming(printer) }, enabled = !state.busy) {
-                    Icon(Icons.Filled.Edit, contentDescription = "改名")
+                IconButton(
+                    onClick = { onStartEditing(printer) },
+                    enabled = !state.busy,
+                    modifier = Modifier.size(buttonHeight),
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = "修改", modifier = Modifier.size(iconSize))
                 }
-                IconButton(onClick = { removing = printer }, enabled = !state.busy) {
-                    Icon(Icons.Filled.Close, contentDescription = "刪除")
+                IconButton(
+                    onClick = { removing = printer },
+                    enabled = !state.busy,
+                    modifier = Modifier.size(buttonHeight),
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = "刪除", modifier = Modifier.size(iconSize))
                 }
             }
             HorizontalDivider()
@@ -194,23 +236,41 @@ private fun SavedPrinterList(
     }
 }
 
-/** Asks for a 打印機名稱; left blank, the IP stands in for it. */
+/** 全部 first, then each [Category]. */
+private val categoryChoices: List<Category?> = listOf(null) + Category.entries
+
+/** Asks for a 打印機名稱 and 類別; a blank name lets the IP stand in for it. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NameDialog(printer: SavedPrinter, onName: (SavedPrinter, String) -> Unit, onCancel: () -> Unit) {
+private fun EditDialog(printer: SavedPrinter, onEdit: (SavedPrinter, String, Category?) -> Unit, onCancel: () -> Unit) {
     var name by remember(printer.address) { mutableStateOf(printer.name) }
+    var category by remember(printer.address) { mutableStateOf(printer.category) }
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("打印機名稱") },
+        title = { Text("打印機設定") },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                placeholder = { Text("例如 倉庫") },
-                supportingText = { Text(printer.address) },
-                singleLine = true,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("打印機名稱") },
+                    placeholder = { Text("例如 倉庫") },
+                    supportingText = { Text(printer.address) },
+                    singleLine = true,
+                )
+                // No 類別 heading: 全部 / 牛奶 / 雪糕 already say what this is.
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    categoryChoices.forEachIndexed { index, choice ->
+                        SegmentedButton(
+                            selected = choice == category,
+                            onClick = { category = choice },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = categoryChoices.size),
+                        ) { Text(choice.choiceLabel) }
+                    }
+                }
+            }
         },
-        confirmButton = { TextButton(onClick = { onName(printer, name) }) { Text("儲存") } },
+        confirmButton = { TextButton(onClick = { onEdit(printer, name, category) }) { Text("儲存") } },
         dismissButton = { TextButton(onClick = onCancel) { Text("略過") } },
     )
 }

@@ -7,6 +7,10 @@ enum class Category(val label: String) {
     ICE_CREAM("雪糕"),
 }
 
+/** The name staff see for a 類別, or 全部 for null. */
+val Category?.choiceLabel: String
+    get() = this?.label ?: "全部"
+
 data class DeliveryNote(
     val number: String,
     val deliveryDate: LocalDate,

@@ -14,6 +14,9 @@ import androidx.core.app.ServiceCompat
 import com.kowloondairy.navprint.landing.DeliveryNote
 import com.kowloondairy.navprint.landing.SqlDeliveryNoteSource
 import com.kowloondairy.navprint.navSqlSettings
+import com.kowloondairy.navprint.print.SharedPrefsPrinterAddressStore
+import com.kowloondairy.navprint.print.SharedPrefsSavedPrinterStore
+import com.kowloondairy.navprint.print.categoryInUse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +30,7 @@ import java.time.LocalDateTime
 
 /**
  * Started by each alarm from 4 to 6: checks once whether tomorrow has a 送貨單 that is 未打印, and rings if so.
+ * Only the 類別 of the printer in use counts, as that is all this phone looks up.
  * Stays in the foreground between checks, and stops itself after the last one of the day.
  */
 class UnprintedAlertService : Service() {
@@ -65,8 +69,12 @@ class UnprintedAlertService : Service() {
     }
 
     private suspend fun check() {
+        val category = categoryInUse(
+            SharedPrefsPrinterAddressStore(this).address,
+            SharedPrefsSavedPrinterStore(this).printers,
+        )
         val unprinted = try {
-            SqlDeliveryNoteSource(navSqlSettings).find(LocalDate.now().plusDays(1), null).filterNot(DeliveryNote::printed)
+            SqlDeliveryNoteSource(navSqlSettings).find(LocalDate.now().plusDays(1), category).filterNot(DeliveryNote::printed)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
