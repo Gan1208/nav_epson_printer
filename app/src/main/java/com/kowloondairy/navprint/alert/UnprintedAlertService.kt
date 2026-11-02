@@ -20,8 +20,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -101,8 +102,10 @@ class UnprintedAlertService : Service() {
             player.setDataSource(this, sound)
             player.isLooping = true
             player.prepare()
+            // Forget a 靜音 asked for before this ring started.
+            silenced.tryReceive()
             player.start()
-            delay(RING_MILLIS)
+            withTimeoutOrNull(RING_MILLIS) { silenced.receive() }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -129,10 +132,17 @@ class UnprintedAlertService : Service() {
         stopSelf()
     }
 
-    private companion object {
-        const val TAG = "UnprintedAlertService"
-        const val FAILURES_BEFORE_TELLING = 2
-        const val RING_MILLIS = 30_000L
-        const val WAKE_MILLIS = 2 * 60_000L
+    companion object {
+        private val silenced = Channel<Unit>(Channel.CONFLATED)
+
+        /** Stops a ring that is going on now, e.g. once the app is opened. Checks still go on. */
+        fun silence() {
+            silenced.trySend(Unit)
+        }
+
+        private const val TAG = "UnprintedAlertService"
+        private const val FAILURES_BEFORE_TELLING = 2
+        private const val RING_MILLIS = 30_000L
+        private const val WAKE_MILLIS = 2 * 60_000L
     }
 }

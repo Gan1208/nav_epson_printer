@@ -84,6 +84,19 @@ class UnprintedAlertRescheduler : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) = UnprintedAlertSchedule.update(context)
 }
 
+/** The 停止響鈴 button on the 未打印提醒: stops the ring now and leaves the notification up. */
+class UnprintedAlertSilencer : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) = UnprintedAlertService.silence()
+}
+
+private fun silenceRing(context: Context): PendingIntent =
+    PendingIntent.getBroadcast(
+        context,
+        0,
+        Intent(context, UnprintedAlertSilencer::class.java),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
 /** Opens the app; with [showUnprinted], on tomorrow's list with the 未打印 送貨單 ticked. */
 fun openApp(context: Context, showUnprinted: Boolean): PendingIntent =
     PendingIntent.getActivity(
@@ -133,6 +146,7 @@ class UnprintedAlertNotifications(private val context: Context) {
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(openApp(context, showUnprinted = true))
+                .addAction(0, "停止響鈴", silenceRing(context))
                 .setAutoCancel(true)
                 .build(),
         )

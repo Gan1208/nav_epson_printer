@@ -16,6 +16,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.kowloondairy.navprint.alert.UnprintedAlertSchedule
 import com.kowloondairy.navprint.alert.UnprintedAlertSection
+import com.kowloondairy.navprint.alert.UnprintedAlertService
 import com.kowloondairy.navprint.landing.Category
 import com.kowloondairy.navprint.landing.DeliveryNote
 import com.kowloondairy.navprint.landing.LandingScreen
@@ -227,6 +228,12 @@ class MainActivity : ComponentActivity() {
     private val printerFinder by lazy { EpsonPrinterFinder(applicationContext) }
     private val savedPrinters by lazy { SharedPrefsSavedPrinterStore(applicationContext) }
     private val defaultCategory by lazy { SharedPrefsDefaultCategoryStore(applicationContext) }
+    /** Whoever opens the app has heard the 未打印提醒, by its notification or not, so the ring stops. */
+    override fun onResume() {
+        super.onResume()
+        UnprintedAlertService.silence()
+    }
+
     companion object {
         /** Set by the 未打印提醒 notification: open on tomorrow's list with the 未打印 ones ticked. */
         const val EXTRA_SHOW_UNPRINTED = "show_unprinted"
