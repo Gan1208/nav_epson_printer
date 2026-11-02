@@ -59,17 +59,22 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
         val placeholders = locations.joinToString { "?" }
         // A 送貨單 has many lines; one row per (Delivery ID, location, 訂單) gives its 類別, 訂單 and customer.
         // Each line's 訂單 is [Document No_]; a 訂單 with no header or a NULL flag counts as not a 訂閱單.
-        // Column 6 is the 送貨單's line count now, column 7 the count when it was printed (NULL if never):
-        // it is 已打印 only when they match. A 送貨單 is one 類別, so the location filter keeps all its lines.
+        // Column 6 is this (訂單, location)'s line count now, column 7 the count when it was printed (NULL if never):
+        // that row is 已打印 only when they match, and the 送貨單 only when all its rows are. 已打印 is kept per
+        // 訂單, not 送貨單號, which another program can remake (docs/adr/0002). A 送貨單 is one 類別, so the
+        // location filter keeps all its lines.
         val sql = """
             SELECT l.[Delivery ID], l.[Location Code], l.[Document No_],
                    MAX(CASE WHEN h.[MagIs_order_subscription] > 0 THEN 1 ELSE 0 END),
                    MAX(h.[Ship-to Name]),
-                   SUM(COUNT(*)) OVER (PARTITION BY l.[Delivery ID]),
+                   COUNT(*),
                    MAX(p.[Line Count])
             FROM [dbo].[Home Delivery${'$'}Sales Line] l
             LEFT JOIN [dbo].[Home Delivery${'$'}Sales Header] h ON h.[No_] = l.[Document No_]
-            LEFT JOIN [dbo].[Home Delivery${'$'}Printed Record] p ON p.[Delivery ID] = l.[Delivery ID]
+            LEFT JOIN [dbo].[Home Delivery${'$'}Printed Order] p
+                   ON p.[Document No_] = l.[Document No_]
+                  AND p.[Requested Delivery Date] = CAST(l.[Requested Delivery Date] AS date)
+                  AND p.[Location Code] = l.[Location Code]
             WHERE l.[Requested Delivery Date] >= ? AND l.[Requested Delivery Date] < ?
               AND l.[Location Code] IN ($placeholders)
               AND l.[Delivery ID] <> ''
@@ -123,13 +128,15 @@ class SqlDeliveryNoteSource(private val settings: SqlConnectionSettings) : Deliv
 
         /**
          * Rows come one per 訂單, and a milk 送貨單 can have lines in both 92 and 93: keep one 送貨單
-         * with all its 訂單, marked if any has a 訂閱單, named after its first 訂單 like the 收據 is.
+         * with all its 訂單, marked if any has a 訂閱單, named after its first 訂單 like the 收據 is,
+         * and 已打印 only if every row is.
          */
         fun mergeByNumber(notes: List<DeliveryNote>): List<DeliveryNote> =
             notes.groupBy { it.number }.values.map { same ->
                 val byOrder = same.sortedBy { it.orderNumbers.firstOrNull().orEmpty() }
                 byOrder.first().copy(
                     hasSubscriptionOrder = same.any { it.hasSubscriptionOrder },
+                    printed = same.all { it.printed },
                     orderNumbers = byOrder.flatMap { it.orderNumbers }.distinct(),
                 )
             }

@@ -5,6 +5,7 @@ import com.kowloondairy.navprint.landing.SqlConnectionSettings
 import com.kowloondairy.navprint.landing.open
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.sql.Date
 
 /** Where a 送貨單 is recorded as 已打印. */
 interface PrintedRecord {
@@ -16,8 +17,9 @@ interface PrintedRecord {
 }
 
 /**
- * Records through `usp_MarkDeliveryPrinted`, the one thing the app's SQL user may run besides reading.
- * See docs/adr/0001-mark-printed-through-stored-procedure.md.
+ * Records through `usp_MarkOrderPrinted`, the one thing the app's SQL user may run besides reading,
+ * once per (訂單, location). If it stops partway the 送貨單 stays 未打印, so the alert still rings.
+ * See docs/adr/0001-mark-printed-through-stored-procedure.md and docs/adr/0002-printed-record-by-order.md.
  */
 class SqlPrintedRecord(
     private val settings: SqlConnectionSettings,
@@ -27,14 +29,19 @@ class SqlPrintedRecord(
 
     override suspend fun markPrinted(receipt: Receipt) {
         val number = receipt.deliveryNote.number
+        val deliveryDate = Date.valueOf(receipt.deliveryNote.deliveryDate.toString())
         withContext(Dispatchers.IO) {
             try {
                 settings.open().use { connection ->
-                    connection.prepareCall("{call [dbo].[usp_MarkDeliveryPrinted](?, ?, ?)}").use { call ->
-                        call.setString(1, number)
-                        call.setInt(2, receipt.lineCount)
-                        call.setString(3, printedBy().take(50))
-                        call.execute()
+                    connection.prepareCall("{call [dbo].[usp_MarkOrderPrinted](?, ?, ?, ?, ?)}").use { call ->
+                        receipt.orderLineCounts.forEach { order ->
+                            call.setString(1, order.orderNumber)
+                            call.setDate(2, deliveryDate)
+                            call.setString(3, order.locationCode)
+                            call.setInt(4, order.lineCount)
+                            call.setString(5, printedBy().take(50))
+                            call.execute()
+                        }
                     }
                 }
             } catch (e: Exception) {

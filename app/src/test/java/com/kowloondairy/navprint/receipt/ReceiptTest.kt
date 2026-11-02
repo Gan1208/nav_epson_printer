@@ -99,6 +99,28 @@ class ReceiptTest {
     }
 
     @Test
+    fun `counts lines per 訂單 and location, including those with quantity 0`() {
+        val receipt = buildReceipt(
+            note,
+            listOf(
+                row(order = "2000002892", location = "92"),
+                row(order = "2000002892", location = "93"),
+                row(order = "2000002892", location = "92", quantity = "0"),
+                row(order = "2000002950", location = "93"),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                OrderLineCount("2000002892", "92", 2),
+                OrderLineCount("2000002892", "93", 1),
+                OrderLineCount("2000002950", "93", 1),
+            ),
+            receipt.orderLineCounts,
+        )
+    }
+
+    @Test
     fun `quantity shows without trailing zeros`() {
         val receipt = buildReceipt(note, listOf(row(quantity = "4.00000000000000000000")))
 

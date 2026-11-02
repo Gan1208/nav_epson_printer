@@ -24,8 +24,8 @@ data class Receipt(
     /** Only 訂單 with something to deliver. */
     val orders: List<ReceiptOrder>,
     val personalMessage: String?,
-    /** How many NAV lines it was built from; a different count later means the 送貨單 changed. */
-    val lineCount: Int = 0,
+    /** How many NAV lines each (訂單, location) had; a different count later means the 送貨單 changed. */
+    val orderLineCounts: List<OrderLineCount> = emptyList(),
 ) {
     /** On the 回單 and 執貨單, e.g. `#20/10/26###HDDN230451799##`. */
     val returnQrContent: String
@@ -39,6 +39,13 @@ data class Receipt(
     val routeText: String
         get() = routes.joinToString(" / ")
 }
+
+/** 已打印 is remembered per 訂單 and location, not per 送貨單號, which can change. See docs/adr/0002. */
+data class OrderLineCount(
+    val orderNumber: String,
+    val locationCode: String,
+    val lineCount: Int,
+)
 
 data class Customer(
     val name: String,
@@ -104,7 +111,10 @@ fun buildReceipt(note: DeliveryNote, rows: List<ReceiptRow>): Receipt {
         routes = rows.map { it.locationCode.trim() }.distinct().sorted(),
         orders = orders,
         personalMessage = first.message?.trim()?.takeIf { it.length > 1 },
-        lineCount = rows.size,
+        orderLineCounts = rows
+            .groupingBy { it.orderNumber to it.locationCode.trim() }
+            .eachCount()
+            .map { (key, count) -> OrderLineCount(key.first, key.second, count) },
     )
 }
 

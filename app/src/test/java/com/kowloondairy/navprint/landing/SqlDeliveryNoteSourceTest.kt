@@ -58,6 +58,21 @@ class SqlDeliveryNoteSourceTest {
     }
 
     @Test
+    fun `a 送貨單 is 已打印 only when every 訂單 and location on it is`() {
+        val day = LocalDate.of(2026, 10, 19)
+        fun row(number: String, order: String, printed: Boolean) =
+            DeliveryNote(number, day, Category.MILK, orderNumbers = listOf(order), printed = printed)
+        val rows = listOf(
+            row("HDDN1", "SO1", printed = true),
+            row("HDDN1", "SO2", printed = false),
+            row("HDDN2", "SO3", printed = true),
+            row("HDDN2", "SO3", printed = true),
+        )
+
+        assertEquals(listOf(false, true), mergeByNumber(rows).map { it.printed })
+    }
+
+    @Test
     fun `connection url names the instance only when there is one`() {
         val settings = SqlConnectionSettings("10.0.0.5", 1433, "", "KDLNAV_HD", "u", "p")
 

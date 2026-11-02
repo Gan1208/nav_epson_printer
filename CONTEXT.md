@@ -10,6 +10,7 @@ _Avoid_: Order, invoice
 
 **送貨單號 (DN Number)**:
 The number that identifies a 送貨單. In lists, people see only its last four characters (the whole number if shorter); short numbers can repeat.
+It can change: another program may delete and make it again. The 送貨單 keeps the same 訂單, so it is still the same 送貨單.
 _Avoid_: ID
 
 **訂單 (Order)**:
@@ -54,6 +55,7 @@ _Avoid_: Label, alias
 
 **已打印 (Printed)**:
 A 送貨單 whose whole 收據 (all three pages) has come out of a printer. Pressing print is not enough; a failed print leaves it 未打印. If the 送貨單 changes after printing (lines added or removed), it is 未打印 again.
+It is remembered for each 訂單 on the 送貨單, for that 送貨日 and the location the goods ship from, not by 送貨單號, so a new 送貨單號 does not make it 未打印. A 送貨單 is 已打印 only when every 訂單 on it is.
 _Avoid_: Sent, done
 
 **未打印提醒 (Unprinted alert)**:
