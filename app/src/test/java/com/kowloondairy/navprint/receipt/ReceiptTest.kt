@@ -32,9 +32,9 @@ class ReceiptTest {
         phone = "96508279",
         shipToAddress = "Room F",
         shipToAddress2 = "20/F",
-        billToAddress = "BLK 26 LAGUNA CITY",
-        billToAddress2 = "12 EAST LAGUNA STREET",
-        billToCity = "KWUN TONG, KLN",
+        street = "BLK 26 LAGUNA CITY, 12 EAST LAGUNA STREET",
+        district = "KWUN TONG",
+        region = "KLN",
         message = message,
     )
 
@@ -51,13 +51,18 @@ class ReceiptTest {
     }
 
     @Test
-    fun `address joins the two ship-to parts and skips blank lines`() {
-        val receipt = buildReceipt(note, listOf(row().copy(billToAddress2 = " ")))
-
+    fun `address joins ship-to parts on one line and district with region on another`() {
         assertEquals(
-            listOf("Room F, 20/F", "BLK 26 LAGUNA CITY", "KWUN TONG, KLN"),
-            receipt.customer.addressLines,
+            listOf("Room F, 20/F", "BLK 26 LAGUNA CITY, 12 EAST LAGUNA STREET", "KWUN TONG, KLN"),
+            buildReceipt(note, listOf(row())).customer.addressLines,
         )
+    }
+
+    @Test
+    fun `address skips blank parts and blank lines`() {
+        val receipt = buildReceipt(note, listOf(row().copy(street = " ", district = "")))
+
+        assertEquals(listOf("Room F, 20/F", "KLN"), receipt.customer.addressLines)
     }
 
     @Test

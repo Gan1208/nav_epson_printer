@@ -85,9 +85,9 @@ data class ReceiptRow(
     val phone: String,
     val shipToAddress: String,
     val shipToAddress2: String,
-    val billToAddress: String,
-    val billToAddress2: String,
-    val billToCity: String,
+    val street: String,
+    val district: String,
+    val region: String,
     val message: String?,
 )
 
@@ -130,11 +130,13 @@ private fun receiptItem(row: ReceiptRow): ReceiptItem {
 
 private fun addressLines(row: ReceiptRow): List<String> =
     listOf(
-        listOf(row.shipToAddress, row.shipToAddress2).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", "),
-        row.billToAddress,
-        row.billToAddress2,
-        row.billToCity,
-    ).map { it.trim() }.filter { it.isNotEmpty() }
+        joinFilled(row.shipToAddress, row.shipToAddress2),
+        row.street.trim(),
+        joinFilled(row.district, row.region),
+    ).filter { it.isNotEmpty() }
+
+private fun joinFilled(vararg parts: String) =
+    parts.map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", ")
 
 interface ReceiptSource {
     /** The 收據 for [note]. */

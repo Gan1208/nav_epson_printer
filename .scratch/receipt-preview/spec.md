@@ -39,13 +39,12 @@ Status: confirmed
 
 ### 地址
 
-四行，空的欄位不印那一行：
+三行。空的欄位不印；整行都空就不印那一行：
 
 ```
 [Ship-to Address], [Ship-to Address 2]
-[Bill-to Address]
-[Bill-to Address 2]
-[Bill-to City]
+[MagStreet]
+[MagDistrict], [MagRegion]
 ```
 
 ### 貨品規則

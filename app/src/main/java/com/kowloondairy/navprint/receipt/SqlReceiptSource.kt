@@ -31,7 +31,7 @@ class SqlReceiptSource(private val settings: SqlConnectionSettings) : ReceiptSou
             SELECT l.[Document No_], l.[Location Code], l.[Description], l.[Description 2], l.[Quantity],
                    h.[Ship-to Name], h.[Ship-to Contact], h.[MagTelephone],
                    h.[Ship-to Address], h.[Ship-to Address 2],
-                   h.[Bill-to Address], h.[Bill-to Address 2], h.[Bill-to City],
+                   h.[MagStreet], h.[MagDistrict], h.[MagRegion],
                    h.[MagSub_district], i.[Short Chinese Description]
             FROM [dbo].[Home Delivery${'$'}Sales Line] l
             LEFT JOIN [dbo].[Home Delivery${'$'}Sales Header] h ON h.[No_] = l.[Document No_]
@@ -64,9 +64,9 @@ class SqlReceiptSource(private val settings: SqlConnectionSettings) : ReceiptSou
                             phone = r.getString(8).orEmpty(),
                             shipToAddress = r.getString(9).orEmpty(),
                             shipToAddress2 = r.getString(10).orEmpty(),
-                            billToAddress = r.getString(11).orEmpty(),
-                            billToAddress2 = r.getString(12).orEmpty(),
-                            billToCity = r.getString(13).orEmpty(),
+                            street = r.getString(11).orEmpty(),
+                            district = r.getString(12).orEmpty(),
+                            region = r.getString(13).orEmpty(),
                             message = r.getString(14),
                         )
                     }
