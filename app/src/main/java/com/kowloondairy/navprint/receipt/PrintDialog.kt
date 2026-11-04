@@ -41,7 +41,7 @@ import com.kowloondairy.navprint.ui.ProvidePageScale
 /**
  * Asks which 已儲存打印機 to print [total] 送貨單 on, then shows how the printing goes.
  * [lastUsed] is the IP printed to last time, picked to start with.
- * While printing it cannot be closed; 停止 is the way out.
+ * While printing, or waiting after every 10 收據, it cannot be closed; 停止 is the way out.
  * Text is as big as the main page's 送貨單 list.
  */
 @Composable
@@ -54,11 +54,12 @@ fun PrintDialog(
     onPrint: (address: String) -> Unit,
     onRetryLoad: () -> Unit,
     onRetryPrint: () -> Unit,
+    onContinue: () -> Unit,
     onStop: () -> Unit,
     onClose: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    val printing = printStatus is PrintStatus.Printing
+    val printing = printStatus is PrintStatus.Printing || printStatus is PrintStatus.Paused
     Dialog(
         onDismissRequest = { if (!printing) onClose() },
         properties = DialogProperties(dismissOnClickOutside = false, usePlatformDefaultWidth = false),
@@ -86,6 +87,13 @@ fun PrintDialog(
                                             enabled = !printStatus.stopping,
                                         )
                                     }
+                                }
+                            }
+                            is PrintStatus.Paused -> {
+                                Text("已印 ${printStatus.done}/${printStatus.total}，繼續打印？")
+                                Buttons {
+                                    DialogButton("停止", onStop)
+                                    DialogButton("繼續打印", onContinue, filled = true)
                                 }
                             }
                             PrintStatus.Printed -> {

@@ -153,6 +153,7 @@ class MainActivity : ComponentActivity() {
             onRetry = viewModel::retry,
             onPrint = viewModel::print,
             onRetryPrint = viewModel::retryPrint,
+            onContinuePrint = viewModel::continuePrint,
             onStop = viewModel::stop,
             onDismissPrintStatus = viewModel::dismissPrintStatus,
             onSettings = onSettings,
@@ -185,6 +186,7 @@ class MainActivity : ComponentActivity() {
             onPrint = { address -> viewModel.print(address, pages.render) },
             onRetryLoad = viewModel::retry,
             onRetryPrint = { viewModel.retryPrint(pages.render) },
+            onContinue = { viewModel.continuePrint(pages.render) },
             onStop = viewModel::stop,
             onClose = {
                 val printed = printStatus != PrintStatus.Idle

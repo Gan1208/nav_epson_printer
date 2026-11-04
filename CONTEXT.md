@@ -42,7 +42,7 @@ What gets printed for one 送貨單: three pages: 回單, 執貨單 and 客戶�
 _Avoid_: Invoice
 
 **多張打印 (Multi print)**:
-Printing the 收據 of two or more 送貨單 picked from the list for the chosen 送貨日 and 類別, in 送貨單號 order. One 送貨單's three pages all come out before the next 送貨單 starts. Picking every 送貨單 in the list prints the whole day.
+Printing the 收據 of two or more 送貨單 picked from the list for the chosen 送貨日 and 類別, in 送貨單號 order. One 送貨單's three pages all come out before the next 送貨單 starts. Picking every 送貨單 in the list prints the whole day. It stops after every 10 收據 and waits for staff to say go on, so they can check the pages before more pile up.
 _Avoid_: Batch print, 全日打印 (it no longer has to be the whole day)
 
 **已儲存打印機 (Saved printer)**:

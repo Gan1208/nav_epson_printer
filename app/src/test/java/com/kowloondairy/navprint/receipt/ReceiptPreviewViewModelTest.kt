@@ -103,6 +103,47 @@ class ReceiptPreviewViewModelTest {
         assertEquals(listOf(note.number, note2.number, note3.number), printedRecord.marked)
     }
 
+    private fun notes(count: Int) =
+        (1..count).map { DeliveryNote("HDDN2304518%02d".format(it), LocalDate.of(2026, 10, 20), Category.MILK) }
+
+    @Test
+    fun `waits after every 10 收據 until staff go on`() {
+        val viewModel = ReceiptPreviewViewModel(notes(25), source, printer, printedRecord, address)
+
+        viewModel.print("192.168.1.50", render)
+        assertEquals(10, printer.printed.size)
+        assertEquals(PrintStatus.Paused(10, 25), viewModel.printStatus.value)
+
+        viewModel.continuePrint(render)
+        assertEquals(20, printer.printed.size)
+        assertEquals(PrintStatus.Paused(20, 25), viewModel.printStatus.value)
+
+        viewModel.continuePrint(render)
+        assertEquals(25, printer.printed.size)
+        assertEquals(PrintStatus.Printed, viewModel.printStatus.value)
+    }
+
+    @Test
+    fun `exactly 10 收據 print without waiting`() {
+        val viewModel = ReceiptPreviewViewModel(notes(10), source, printer, printedRecord, address)
+
+        viewModel.print("192.168.1.50", render)
+
+        assertEquals(10, printer.printed.size)
+        assertEquals(PrintStatus.Printed, viewModel.printStatus.value)
+    }
+
+    @Test
+    fun `stopping while waiting stops with what is already printed`() {
+        val viewModel = ReceiptPreviewViewModel(notes(25), source, printer, printedRecord, address)
+        viewModel.print("192.168.1.50", render)
+
+        viewModel.stop()
+
+        assertEquals(10, printer.printed.size)
+        assertEquals(PrintStatus.Stopped(10, 25), viewModel.printStatus.value)
+    }
+
     @Test
     fun `loads the 收據 for the chosen 送貨單`() {
         val viewModel = viewModel()

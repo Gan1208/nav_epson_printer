@@ -23,6 +23,9 @@ sealed interface ReceiptPreviewState {
 
 private val allPages = ReceiptPage.entries.toList()
 
+/** Printing waits after this many 收據, so staff can check them before more pile up. */
+const val RECEIPTS_BEFORE_PAUSE = 10
+
 /** Draws one page of one 送貨單 as a 576-dot-wide image. */
 typealias RenderPage = suspend (DeliveryNote, ReceiptPage) -> Bitmap
 
@@ -30,6 +33,8 @@ typealias RenderPage = suspend (DeliveryNote, ReceiptPage) -> Bitmap
 sealed interface PrintStatus {
     data object Idle : PrintStatus
     data class Printing(val done: Int, val total: Int, val stopping: Boolean = false) : PrintStatus
+    /** [done] 收據 are out and printing waits for staff to go on or stop. */
+    data class Paused(val done: Int, val total: Int) : PrintStatus
     data object Printed : PrintStatus
     data class Stopped(val done: Int, val total: Int) : PrintStatus
     /** [remaining] starts with the 送貨單 that failed; it is what to send again if the person retries. */
@@ -59,6 +64,9 @@ class ReceiptPreviewViewModel(
 
     private var stopRequested = false
 
+    /** What is left to print while [PrintStatus.Paused]. */
+    private var pausedRemaining: List<DeliveryNote> = emptyList()
+
     init {
         load()
     }
@@ -81,8 +89,18 @@ class ReceiptPreviewViewModel(
         run(failed.remaining, failed.done, failed.total, render)
     }
 
+    /** After a pause, prints the next 收據. */
+    fun continuePrint(render: RenderPage) {
+        val paused = _printStatus.value as? PrintStatus.Paused ?: return
+        run(pausedRemaining, paused.done, paused.total, render)
+    }
+
     /** Stops once the 送貨單 printing now is done, so no 收據 comes out half printed. */
     fun stop() {
+        (_printStatus.value as? PrintStatus.Paused)?.let {
+            _printStatus.value = PrintStatus.Stopped(it.done, it.total)
+            return
+        }
         val printing = _printStatus.value as? PrintStatus.Printing ?: return
         stopRequested = true
         _printStatus.value = printing.copy(stopping = true)
@@ -118,7 +136,14 @@ class ReceiptPreviewViewModel(
                     return@launch
                 }
                 record(note)
-                _printStatus.value = PrintStatus.Printing(printed + 1, total, stopRequested)
+                val nowDone = printed + 1
+                val left = notes.drop(i + 1)
+                if (!stopRequested && left.isNotEmpty() && nowDone % RECEIPTS_BEFORE_PAUSE == 0) {
+                    pausedRemaining = left
+                    _printStatus.value = PrintStatus.Paused(nowDone, total)
+                    return@launch
+                }
+                _printStatus.value = PrintStatus.Printing(nowDone, total, stopRequested)
             }
             _printStatus.value = PrintStatus.Printed
         }

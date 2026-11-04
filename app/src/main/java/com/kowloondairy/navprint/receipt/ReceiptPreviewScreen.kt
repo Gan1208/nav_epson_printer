@@ -52,6 +52,7 @@ fun ReceiptPreviewScreen(
     onRetry: () -> Unit,
     onPrint: (address: String, render: RenderPage) -> Unit,
     onRetryPrint: (render: RenderPage) -> Unit,
+    onContinuePrint: (render: RenderPage) -> Unit,
     onStop: () -> Unit,
     onDismissPrintStatus: () -> Unit,
     onSettings: () -> Unit,
@@ -125,6 +126,7 @@ fun ReceiptPreviewScreen(
             onPrint = { address -> onPrint(address, pages.render) },
             onRetryLoad = onRetry,
             onRetryPrint = { onRetryPrint(pages.render) },
+            onContinue = { onContinuePrint(pages.render) },
             onStop = onStop,
             onClose = {
                 choosing = false
