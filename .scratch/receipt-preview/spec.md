@@ -95,7 +95,7 @@ Status: confirmed
 
 1–4 跟 回單 一樣
 5. 左：`Route : 92`、`Delivery ID : 1799**`、`Remarks:` 和固定文字；右：contact-us QR code
-6. 有個人留言就印在 Remarks 下面
+6. 有個人留言就印喺貨品列表後面：四邊虛綫框住，字比貨品大 10%（12sp），粗體。冇留言就冇框。
 7. 底部置中：`-- Thank you --`
 
 Remarks 固定文字（寫死在 app）：

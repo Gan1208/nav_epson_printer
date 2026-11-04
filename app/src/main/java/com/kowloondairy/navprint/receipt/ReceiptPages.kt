@@ -22,10 +22,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -48,6 +50,8 @@ val PaperWidth = 288.dp
 
 private val ink = Color.Black
 private val bodyStyle = TextStyle(color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold, lineHeight = 15.sp)
+/** The customer's message on the 客戶單: 10% bigger than the item lines. */
+private val messageStyle = bodyStyle.copy(fontSize = 12.sp, lineHeight = 17.sp)
 private val packingStyle = TextStyle(color = ink, fontSize = 33.sp, fontWeight = FontWeight.Bold, lineHeight = 45.sp)
 private val labelWidth = 58.dp
 private val qrSize = 84.dp
@@ -103,6 +107,14 @@ private fun ColumnScope.ReturnPage(receipt: Receipt) {
 @Composable
 private fun ColumnScope.CustomerPage(receipt: Receipt) {
     DeliveryDetails(receipt)
+    receipt.personalMessage?.let {
+        Gap(16.dp)
+        Text(
+            it,
+            style = messageStyle,
+            modifier = Modifier.fillMaxWidth().dashedBorder().padding(8.dp),
+        )
+    }
     Gap(16.dp)
     Row {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -110,10 +122,6 @@ private fun ColumnScope.CustomerPage(receipt: Receipt) {
             Gap(2.dp)
             Text("Remarks:")
             Text(CUSTOMER_REMARKS)
-            receipt.personalMessage?.let {
-                Gap(4.dp)
-                Text(it)
-            }
         }
         Spacer(Modifier.width(8.dp))
         QrCode(CONTACT_US_URL, qrSize)
@@ -235,6 +243,17 @@ private fun DashedLine() {
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f)),
         )
     }
+}
+
+/** A dashed line on all four sides, like [DashedLine]. */
+private fun Modifier.dashedBorder(): Modifier = drawBehind {
+    val stroke = 1.dp.toPx()
+    drawRect(
+        color = ink,
+        topLeft = Offset(stroke / 2, stroke / 2),
+        size = Size(size.width - stroke, size.height - stroke),
+        style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))),
+    )
 }
 
 @Composable
