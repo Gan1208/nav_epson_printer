@@ -62,7 +62,7 @@ fun UnprintedAlertSection() {
             Column(Modifier.weight(1f)) {
                 Text("未打印提醒", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "下午 4 至 6 點每 5 分鐘檢查明日送貨單，有未打印就響鬧鐘",
+                    "下午 4 至 6 點每 10 分鐘檢查明日送貨單，有未打印就響鬧鐘",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

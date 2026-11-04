@@ -130,7 +130,7 @@ class UnprintedAlertNotifications(private val context: Context) {
     fun running() = NotificationCompat.Builder(context, CHANNEL_RUNNING)
         .setSmallIcon(R.drawable.ic_unprinted_alert)
         .setContentTitle("未打印提醒運行中")
-        .setContentText("下午 4 至 6 點，每 5 分鐘檢查明日送貨單")
+        .setContentText("下午 4 至 6 點，每 10 分鐘檢查明日送貨單")
         .setOngoing(true)
         .build()
 

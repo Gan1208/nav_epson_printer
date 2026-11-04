@@ -18,10 +18,10 @@ class CheckTimesTest {
     }
 
     @Test
-    fun `between 4 and 6 it checks every 5 minutes`() {
-        assertEquals(at(16, 5), nextCheck(at(16, 0)))
-        assertEquals(at(16, 35), nextCheck(at(16, 31)))
-        assertEquals(at(18, 0), nextCheck(at(17, 55)))
+    fun `between 4 and 6 it checks every 10 minutes`() {
+        assertEquals(at(16, 10), nextCheck(at(16, 0)))
+        assertEquals(at(16, 40), nextCheck(at(16, 31)))
+        assertEquals(at(18, 0), nextCheck(at(17, 50)))
     }
 
     @Test

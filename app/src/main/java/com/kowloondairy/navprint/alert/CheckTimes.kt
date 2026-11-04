@@ -9,7 +9,7 @@ val FIRST_CHECK: LocalTime = LocalTime.of(16, 0)
 /** …to here, both included. */
 val LAST_CHECK: LocalTime = LocalTime.of(18, 0)
 
-const val MINUTES_BETWEEN_CHECKS = 5L
+const val MINUTES_BETWEEN_CHECKS = 10L
 
 /** The first check strictly after [now]: later today if one is left, else tomorrow's [FIRST_CHECK]. */
 fun nextCheck(now: LocalDateTime): LocalDateTime {
