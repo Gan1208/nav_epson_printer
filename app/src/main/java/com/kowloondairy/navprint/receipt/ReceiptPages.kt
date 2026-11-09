@@ -106,15 +106,7 @@ private fun ColumnScope.ReturnPage(receipt: Receipt) {
 
 @Composable
 private fun ColumnScope.CustomerPage(receipt: Receipt) {
-    DeliveryDetails(receipt)
-    receipt.personalMessage?.let {
-        Gap(16.dp)
-        Text(
-            it,
-            style = messageStyle,
-            modifier = Modifier.fillMaxWidth().dashedBorder().padding(8.dp),
-        )
-    }
+    DeliveryDetails(receipt, receipt.personalMessage)
     Gap(16.dp)
     Row {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -157,9 +149,12 @@ private fun ColumnScope.PackingPage(receipt: Receipt) {
     }
 }
 
-/** Logo, date, customer and goods: the same on the 回單 and 客戶單. */
+/**
+ * Logo, date, customer and goods: the same on the 回單 and 客戶單.
+ * [message] is the customer's message, in a dashed box between the customer and the goods.
+ */
 @Composable
-private fun ColumnScope.DeliveryDetails(receipt: Receipt) {
+private fun ColumnScope.DeliveryDetails(receipt: Receipt, message: String? = null) {
     Image(
         painter = painterResource(R.drawable.kdl_receipt_logo),
         contentDescription = null,
@@ -182,6 +177,14 @@ private fun ColumnScope.DeliveryDetails(receipt: Receipt) {
                 }
             }
         }
+    }
+    message?.let {
+        Gap(16.dp)
+        Text(
+            it,
+            style = messageStyle,
+            modifier = Modifier.fillMaxWidth().dashedBorder().padding(8.dp),
+        )
     }
     receipt.orders.forEach { order ->
         Gap(16.dp)
