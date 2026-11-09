@@ -27,6 +27,7 @@ import com.kowloondairy.navprint.print.EpsonPrinterFinder
 import com.kowloondairy.navprint.print.EpsonReceiptPrinter
 import com.kowloondairy.navprint.print.SharedPrefsPrinterAddressStore
 import com.kowloondairy.navprint.print.SharedPrefsSavedPrinterStore
+import com.kowloondairy.navprint.receipt.EarlyDeliveryDateDialog
 import com.kowloondairy.navprint.receipt.PrintDialog
 import com.kowloondairy.navprint.receipt.PrintStatus
 import com.kowloondairy.navprint.receipt.ReceiptPreviewScreen
@@ -34,6 +35,7 @@ import com.kowloondairy.navprint.receipt.ReceiptPreviewState
 import com.kowloondairy.navprint.receipt.ReceiptPreviewViewModel
 import com.kowloondairy.navprint.receipt.SqlPrintedRecord
 import com.kowloondairy.navprint.receipt.SqlReceiptSource
+import com.kowloondairy.navprint.receipt.earlyDeliveryDateLine
 import com.kowloondairy.navprint.receipt.rememberPageLayers
 import com.kowloondairy.navprint.settings.PrinterSettingsScreen
 import com.kowloondairy.navprint.settings.PrinterSettingsViewModel
@@ -66,6 +68,8 @@ class MainActivity : ComponentActivity() {
                 // Each 打印 from the main page counts up, so it gets its own 收據, loaded fresh.
                 var printing by remember { mutableStateOf<Pair<Int, List<DeliveryNote>>?>(null) }
                 var printRuns by remember { mutableStateOf(0) }
+                // The 送貨日 line and the 送貨單 waiting on 確定打印.
+                var askingDate by remember { mutableStateOf<Pair<String, List<DeliveryNote>>?>(null) }
                 var inSettings by remember { mutableStateOf(false) }
                 // A 本裝置預設類別 changed in 設定 is used straight away; one left alone keeps the 類別 picked here.
                 var defaultBefore by remember { mutableStateOf<Category?>(null) }
@@ -103,9 +107,24 @@ class MainActivity : ComponentActivity() {
                             onToggleAll = viewModel::toggleAll,
                             onRetry = viewModel::retry,
                             onPreview = { previewing = state.ticked },
-                            onPrint = { printing = ++printRuns to state.ticked },
+                            onPrint = {
+                                val ticked = state.ticked
+                                val line = ticked.firstOrNull()
+                                    ?.let { earlyDeliveryDateLine(it.deliveryDate, LocalDate.now()) }
+                                if (line == null) printing = ++printRuns to ticked else askingDate = line to ticked
+                            },
                             onSettings = openSettings,
                         )
+                        askingDate?.let { (line, ticked) ->
+                            EarlyDeliveryDateDialog(
+                                line,
+                                onConfirm = {
+                                    askingDate = null
+                                    printing = ++printRuns to ticked
+                                },
+                                onCancel = { askingDate = null },
+                            )
+                        }
                         printing?.let { (run, ticked) ->
                             PrintWithoutPreview(
                                 run,

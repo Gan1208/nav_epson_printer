@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kowloondairy.navprint.landing.DeliveryNote
 import com.kowloondairy.navprint.print.SavedPrinter
+import java.time.LocalDate
 
 /**
  * Every page of every 收據 in [deliveryNotes], one under the other.
@@ -60,6 +61,7 @@ fun ReceiptPreviewScreen(
     val several = deliveryNotes.size > 1
     val pages = rememberPageLayers(deliveryNotes)
     var choosing by remember { mutableStateOf(false) }
+    var askingDate by remember { mutableStateOf<String?>(null) }
 
     // While printing the dialog is up and keeps back for itself.
     BackHandler(onBack = onBack)
@@ -88,7 +90,10 @@ fun ReceiptPreviewScreen(
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Button(
-                onClick = { choosing = true },
+                onClick = {
+                    val line = earlyDeliveryDateLine(deliveryNotes.first().deliveryDate, LocalDate.now())
+                    if (line == null) choosing = true else askingDate = line
+                },
                 enabled = state is ReceiptPreviewState.Loaded,
                 modifier = Modifier.padding(16.dp).fillMaxWidth(),
             ) { Text(if (several) "打印（${deliveryNotes.size} 張送貨單）" else "打印（三頁）") }
@@ -114,6 +119,17 @@ fun ReceiptPreviewScreen(
                 }
             }
         }
+    }
+
+    askingDate?.let { line ->
+        EarlyDeliveryDateDialog(
+            line,
+            onConfirm = {
+                askingDate = null
+                choosing = true
+            },
+            onCancel = { askingDate = null },
+        )
     }
 
     if (choosing || printStatus != PrintStatus.Idle) {

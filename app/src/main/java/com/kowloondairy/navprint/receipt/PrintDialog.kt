@@ -206,6 +206,38 @@ private fun Choosing(
     }
 }
 
+/**
+ * Asked when 打印 is tapped and the 送貨日 is not tomorrow or later, before picking a printer.
+ * [line] says which 送貨日 it is, from [earlyDeliveryDateLine].
+ */
+@Composable
+fun EarlyDeliveryDateDialog(line: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    Dialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(dismissOnClickOutside = false, usePlatformDefaultWidth = false),
+    ) {
+        ProvidePageScale {
+            ProvideListText {
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    tonalElevation = 6.dp,
+                    modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(24.dp)) {
+                        Text("送貨日不是明天", color = MaterialTheme.colorScheme.error)
+                        Text(line)
+                        Text("確定要打印？")
+                        Buttons {
+                            DialogButton("取消", onCancel)
+                            DialogButton("確定打印", onConfirm, filled = true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun Buttons(content: @Composable () -> Unit) {
     Row(
