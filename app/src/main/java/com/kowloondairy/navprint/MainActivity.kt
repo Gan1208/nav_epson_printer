@@ -10,7 +10,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -40,7 +43,10 @@ import com.kowloondairy.navprint.receipt.rememberPageLayers
 import com.kowloondairy.navprint.settings.PrinterSettingsScreen
 import com.kowloondairy.navprint.settings.PrinterSettingsViewModel
 import com.kowloondairy.navprint.ui.NavPrintTheme
+import kotlinx.coroutines.delay
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,6 +104,18 @@ class MainActivity : ComponentActivity() {
                         onSettings = openSettings,
                     )
                     else -> {
+                        // At 00:00, and each time the main page shows, go to the new tomorrow; not mid-print.
+                        if (printing == null && askingDate == null) {
+                            val lifecycle = LocalLifecycleOwner.current.lifecycle
+                            LaunchedEffect(lifecycle) {
+                                lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                                    while (true) {
+                                        viewModel.newDay(LocalDate.now())
+                                        delay(untilNextDay())
+                                    }
+                                }
+                            }
+                        }
                         LandingScreen(
                             state = state,
                             onDeliveryDateChosen = viewModel::chooseDeliveryDate,
@@ -253,6 +271,12 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         UnprintedAlertService.silence()
+    }
+
+    /** A second past 00:00, so the phone's date has surely turned. */
+    private fun untilNextDay(): Long {
+        val now = LocalDateTime.now()
+        return Duration.between(now, now.toLocalDate().plusDays(1).atStartOfDay()).toMillis() + 1_000
     }
 
     companion object {

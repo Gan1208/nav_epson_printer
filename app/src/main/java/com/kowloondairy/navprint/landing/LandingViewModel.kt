@@ -38,7 +38,7 @@ data class LandingUiState(
 
 /** [category] is the 本裝置預設類別, which the page starts on. */
 class LandingViewModel(
-    private val today: LocalDate,
+    today: LocalDate,
     private val deliveryNotes: DeliveryNoteSource,
     category: Category?,
 ) : ViewModel() {
@@ -91,9 +91,19 @@ class LandingViewModel(
 
     fun retry() = load()
 
+    /**
+     * Called with the phone's date at 00:00 and whenever the main page shows. On a new day it goes to
+     * the new tomorrow, even over a date staff chose, and drops the list until 查詢 is pressed.
+     */
+    fun newDay(today: LocalDate) {
+        if (today == _state.value.today) return
+        _state.update { it.copy(today = today, deliveryDate = today.plusDays(1)) }
+        clear()
+    }
+
     /** From the 未打印提醒: tomorrow's 送貨單 of every 類別, as the alert counts, with the 未打印 ones ticked. */
     fun showUnprinted() {
-        _state.update { it.copy(deliveryDate = today.plusDays(1), category = null) }
+        _state.update { it.copy(deliveryDate = it.today.plusDays(1), category = null) }
         load { notes -> notes.filterNot { it.printed }.map { it.number }.toSet() }
     }
 

@@ -240,4 +240,42 @@ class LandingViewModelTest {
         assertNull(state.category)
         assertEquals(setOf("D001", "D002"), state.selected)
     }
+
+    @Test
+    fun `a new day picks the new tomorrow, even over a chosen date, and drops the list`() {
+        val viewModel = queried()
+        viewModel.chooseDeliveryDate(today.plusDays(5))
+        viewModel.query()
+
+        viewModel.newDay(tomorrow)
+
+        val state = viewModel.state.value
+        assertEquals(tomorrow, state.today)
+        assertEquals(LocalDate.of(2026, 10, 18), state.deliveryDate)
+        assertEquals(LoadStatus.NOT_QUERIED, state.loadStatus)
+        assertEquals(emptyList<DeliveryNote>(), state.deliveryNoteOptions)
+    }
+
+    @Test
+    fun `the same day keeps the chosen date, the list and the ticks`() {
+        val viewModel = queried()
+        viewModel.toggle(milkTomorrow)
+
+        viewModel.newDay(today)
+
+        val state = viewModel.state.value
+        assertEquals(tomorrow, state.deliveryDate)
+        assertEquals(LoadStatus.LOADED, state.loadStatus)
+        assertEquals(setOf("D001"), state.selected)
+    }
+
+    @Test
+    fun `after a new day the 未打印提醒 opens the new tomorrow`() {
+        val viewModel = landing()
+        viewModel.newDay(tomorrow)
+
+        viewModel.showUnprinted()
+
+        assertEquals(listOf(LocalDate.of(2026, 10, 18) to null), source.asked)
+    }
 }
